@@ -17,6 +17,19 @@
 
 <p align="center"><a href="https://github.com/yashoncode/konnect-tv/releases/latest"><b>⬇ Download the latest KonnectTV</b></a></p>
 
+## Real results
+
+Measured on a 1 GB Google TV (CHiQ, Android 14): Google TV's own home with apps left running, then Glowlauncher after Boost cleared background apps. Median of 3 cold starts each.
+
+| | Before | After KonnectTV |
+|:--|--:|--:|
+| Netflix opens in | 1.72 s | **0.85 s** (2× faster) |
+| Prime Video opens in | 3.37 s | **1.87 s** (1.8× faster) |
+| Home screen memory | 80 MB | **21 MB** (4× lighter) |
+| Free memory | 255 MB | **308 MB** |
+
+Your TV will differ. The older and more cluttered it is, the bigger the gain.
+
 ## Features
 
 - ✨ **Glowlauncher.** A calm home screen for your TV: a big clock and only the apps you pick, in one glowing dock. Choose the glow colour, or RGB to fade through all of them.
