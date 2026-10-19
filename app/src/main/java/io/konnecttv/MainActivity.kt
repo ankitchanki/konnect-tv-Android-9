@@ -10,6 +10,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -37,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chrisbanes.haze.HazeState
@@ -47,6 +51,7 @@ import io.konnecttv.ui.BoostScreen
 import io.konnecttv.ui.C
 import io.konnecttv.ui.ConnectScreen
 import io.konnecttv.ui.DetoxScreen
+import io.konnecttv.ui.HapticIndication
 import io.konnecttv.ui.LocalHaze
 import io.konnecttv.ui.LocalSheetHost
 import io.konnecttv.ui.SheetHost
@@ -66,7 +71,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val haze = remember { HazeState() }
             val sheets = remember { SheetHost() }
-            CompositionLocalProvider(LocalHaze provides haze, LocalSheetHost provides sheets) { Root(vm) }
+            val press = LocalIndication.current as IndicationNodeFactory
+            val indication = remember(press) { HapticIndication(press) }
+            CompositionLocalProvider(LocalHaze provides haze, LocalSheetHost provides sheets, LocalIndication provides indication) { Root(vm) }
         }
     }
 }
@@ -120,12 +127,16 @@ private fun TabBar(current: Tab, modifier: Modifier, onPick: (Tab) -> Unit) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val haptics = LocalHapticFeedback.current
         Tab.entries.forEach { t ->
             val color = if (t == current) C.Text else C.Muted
             Column(
                 Modifier
                     .weight(1f)
-                    .clickable(remember { MutableInteractionSource() }, indication = null) { onPick(t) },
+                    .clickable(remember { MutableInteractionSource() }, indication = null) {
+                        haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                        onPick(t)
+                    },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 TabIcon(t, if (t == current) C.Accent else color)

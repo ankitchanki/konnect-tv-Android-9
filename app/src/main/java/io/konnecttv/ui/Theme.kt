@@ -59,6 +59,17 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.node.DelegatingNode
+import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 
 /** Mono matte: solid dark surfaces, frosted glass only on things that float. */
 object C {
@@ -89,6 +100,29 @@ fun Modifier.glass(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
     .hazeEffect(LocalHaze.current, GlassStyle)
     .border(1.dp, Color(0x14FFFFFF), shape)
+
+/**
+ * Wraps the press highlight so every clickable also ticks the phone's haptics on press.
+ * One place covers every button, card, key and toggle in the app.
+ */
+class HapticIndication(private val inner: IndicationNodeFactory) : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode =
+        object : DelegatingNode(), CompositionLocalConsumerModifierNode {
+            init { delegate(inner.create(interactionSource)) }
+
+            override fun onAttach() {
+                // Undispatched so the first press isn't missed: interactions don't replay.
+                coroutineScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    interactionSource.interactions.collect {
+                        if (it is PressInteraction.Press) currentValueOf(LocalHapticFeedback).performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    }
+                }
+            }
+        }
+
+    override fun equals(other: Any?) = other is HapticIndication && other.inner == inner
+    override fun hashCode() = inner.hashCode()
+}
 
 val H1 = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = C.Text)
 val Body = TextStyle(fontSize = 14.sp, color = C.Text)

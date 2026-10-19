@@ -1,22 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A TV with a signal dot, on the 108dp adaptive-icon grid (safe zone 18..90). -->
+<!-- A "K" whose arms meet at a node: the link between phone and TV. 108dp adaptive grid, safe zone 21..87. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#7CF0B0"
-        android:strokeWidth="4"
-        android:pathData="M34,38h40a6,6 0,0 1,6 6v22a6,6 0,0 1,-6 6h-40a6,6 0,0 1,-6 -6v-22a6,6 0,0 1,6 -6z" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#7CF0B0"
-        android:strokeWidth="4"
+        android:strokeWidth="8"
         android:strokeLineCap="round"
-        android:pathData="M44,80h20" />
+        android:pathData="M38,36V72M54,54L71,37M54,54L71,71">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="34" android:startY="76" android:endX="75" android:endY="32">
+                <item android:offset="0" android:color="#3FD6A0" />
+                <item android:offset="1" android:color="#9FF7FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- The node, ringed in the glow's centre colour so it reads as a separate joint. -->
     <path
-        android:fillColor="#7CF0B0"
-        android:pathData="M54,55m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+        android:fillColor="#14251E"
+        android:pathData="M54,54m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0" />
+    <path
+        android:pathData="M54,54m-6.5,0a6.5,6.5 0,1 1,13 0a6.5,6.5 0,1 1,-13 0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="47.5" android:startY="60.5" android:endX="60.5" android:endY="47.5">
+                <item android:offset="0" android:color="#7CF0B0" />
+                <item android:offset="1" android:color="#E6FFF4" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>
