@@ -51,9 +51,14 @@ private const val LAUNCHER_PKG = "com.ansub.tvhome"
 private const val ICON_HELPER = "/data/local/tmp/konnecttv-icons.jar"
 private const val LAUNCHER_ACTIVITY = "$LAUNCHER_PKG/.MainActivity"
 
-/** A HOME app the clean launcher may turn off: a launcher, never Settings, setup or anything protected. */
-internal fun isRivalLauncher(pkg: String, isProtected: (String) -> Boolean): Boolean =
-    pkg != LAUNCHER_PKG && "settings" !in pkg && "setup" !in pkg && ("launcher" in pkg || !isProtected(pkg))
+/**
+ * A HOME app the clean launcher may turn off: only things named as launchers or home screens.
+ * Settings, setup and TV makers' input/tuner apps (which answer HOME to boot into Live TV) also
+ * show up as HOME apps; turning those off freezes the TV, so anything else is left alone.
+ */
+internal fun isRivalLauncher(pkg: String): Boolean =
+    pkg != LAUNCHER_PKG && "settings" !in pkg && "setup" !in pkg &&
+        ("launcher" in pkg || pkg.endsWith(".tvhome") || pkg.endsWith(".home"))
 
 private val ANIMATION_KEYS = listOf("window_animation_scale", "transition_animation_scale", "animator_duration_scale")
 
@@ -496,21 +501,25 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         say("Downloading clean launcher…")
         val file = File(getApplication<Application>().cacheDir, "tvhome.apk")
         URL(LAUNCHER_URL).openStream().use { input -> file.outputStream().use { input.copyTo(it) } }
+        // Switching home is the heaviest thing a TV does; on 1-2 GB TVs it can stall for minutes
+        // when memory is full. Clear background apps first so the switch has room.
+        a.sh("am kill-all")
         say("Installing… If the TV shows a Play Protect message, allow it on the TV.")
         val result = file.inputStream().use { a.install(it, file.length()) }
         if (!result.startsWith("Success")) error("Install failed: $result")
         if (history.value.none { it.kind == "install" && it.target == LAUNCHER_PKG }) {
             record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "Clean launcher installed"))
         }
-        // Seed the launcher with the apps the user picked.
-        sendHomeApps(a, homeApps)
+        say("Switching home screen… The TV may pause for a minute. Leave it on.")
+        // Become home first, then open once with the picked apps: launching it before the switch
+        // meant starting it twice on a TV that's short of memory.
         a.sh("cmd role add-role-holder --user 0 android.app.role.HOME $LAUNCHER_PKG; cmd package set-home-activity $LAUNCHER_ACTIVITY")
         // Most TVs' own home screens keep winning Home until they are turned off.
         if (!isHomeActive(a)) {
             // Only real launchers. Settings and setup also answer HOME (as a fallback) and must stay on.
             val others = a.sh("cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME")
                 .lines().filter { '/' in it }.map { it.trim().substringBefore('/') }.toSet()
-                .filter { isRivalLauncher(it, debloat::isProtected) }
+                .filter(::isRivalLauncher)
             for (pkg in others) {
                 if ("disabled" in a.sh("pm disable-user --user 0 $pkg")) {
                     record(Change(System.currentTimeMillis(), "home", pkg, "${debloat.label(pkg)} turned off for clean launcher"))
@@ -518,6 +527,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             }
             a.sh("cmd package set-home-activity $LAUNCHER_ACTIVITY")
         }
+        sendHomeApps(a, homeApps)
         a.keyevent(io.konnecttv.adb.Key.HOME)
         tweaks.value = readTweaks(a)
         apps.value = readApps(a)

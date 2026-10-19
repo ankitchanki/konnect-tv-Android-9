@@ -36,9 +36,12 @@ After the first time, KonnectTV remembers the TV and reconnects in one tap.
 - Apps are **turned off** (`pm disable-user`), never deleted. Undo one change or everything from **Detox › History**.
 - KonnectTV never turns off Google Play, Play services, keyboards, Bluetooth, HDMI/TV inputs, Settings or the system UI. This applies to Detox and the app manager.
 - Only apps you installed yourself can be uninstalled. System apps can only be turned off.
+- The clean launcher only turns off other launchers and home screens. It never turns off the TV maker's Live TV or input app, even when that app also answers the Home button.
 - The safe-to-turn-off list is in [`app/src/main/assets/debloat.json`](app/src/main/assets/debloat.json). Each entry has a plain-English reason. Pull requests for more brands are welcome.
 
 Works on Android TV and Google TV: Sony, TCL, Hisense, Philips, Xiaomi, Chromecast with Google TV, NVIDIA Shield and others. Samsung (Tizen), LG (webOS) and Roku don't run Android, so they can't be cleaned this way.
+
+**Turning on the clean launcher can freeze low-memory TVs for a few minutes.** Changing the home screen is the heaviest thing a TV does: it installs an app, changes the Home app and restarts the home screen. TVs with 1–2 GB of memory can stop responding while this happens. KonnectTV clears background apps first to make room. If the TV freezes, leave it on and don't unplug it. It recovers by itself, and the next start is normal.
 
 > Use at your own risk. This is what works on the TVs we tried. It is not professional advice.
 

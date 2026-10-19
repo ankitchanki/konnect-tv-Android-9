@@ -206,6 +206,15 @@ private fun HomePicker(vm: TvViewModel, editing: Boolean, onDone: (List<String>)
             }
         }
     }
+    if (!editing) {
+        // Switching home is heavy; low-memory TVs can stall while they catch up.
+        Text(
+            "Heads-up: on TVs with 1–2 GB of memory, the TV can freeze for a few minutes while it switches home. " +
+                "Leave it on and don't unplug it. It recovers by itself.",
+            style = Small.copy(color = C.Muted),
+            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(C.Raised).padding(12.dp),
+        )
+    }
     PrimaryButton(
         when {
             editing -> "Save (${picked.size} apps)"

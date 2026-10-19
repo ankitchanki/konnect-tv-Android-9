@@ -45,13 +45,16 @@ class LogicTest {
     }
 
     @Test fun launcherSwapNeverTouchesSettingsOrSetup() {
-        val protected = { p: String -> p in setOf("com.google.android.tvlauncher", "com.android.settings", "com.google.android.tungsten.setupwraith") }
-        assertTrue(isRivalLauncher("com.google.android.tvlauncher", protected))
-        assertTrue(isRivalLauncher("com.mitv.tvhome", protected))
-        assertFalse(isRivalLauncher("com.android.settings", protected))
-        assertFalse(isRivalLauncher("com.android.tv.settings", protected))
-        assertFalse(isRivalLauncher("com.google.android.tungsten.setupwraith", protected))
-        assertFalse(isRivalLauncher("com.ansub.tvhome", protected))
+        assertTrue(isRivalLauncher("com.google.android.tvlauncher"))
+        assertTrue(isRivalLauncher("com.mitv.tvhome"))
+        assertFalse(isRivalLauncher("com.android.settings"))
+        assertFalse(isRivalLauncher("com.android.tv.settings"))
+        assertFalse(isRivalLauncher("com.google.android.tungsten.setupwraith"))
+        assertFalse(isRivalLauncher("com.ansub.tvhome"))
+        // TV makers' input/tuner apps also answer HOME (boot to Live TV). Turning them off freezes the TV.
+        assertFalse(isRivalLauncher("com.mediatek.wwtv.tvcenter"))
+        assertFalse(isRivalLauncher("com.homwee.tvcenter"))
+        assertFalse(isRivalLauncher("com.realtek.tv"))
     }
 
     @Test fun shellQuoting() {
