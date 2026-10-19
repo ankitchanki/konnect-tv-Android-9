@@ -1,15 +1,32 @@
-# KonnectTV
+<p align="center"><img src=".github/assets/icon.png" width="112" alt="KonnectTV logo"></p>
 
-**Make a slow Android TV fast again, from your phone.**
+<h1 align="center">KonnectTV</h1>
 
-KonnectTV is a small Android app that connects to your Android TV or Google TV over Wi-Fi and lets you:
+<p align="center"><img src=".github/assets/poster.png" alt="KonnectTV: make your old TV feel new again"></p>
 
-- **Remote**: d-pad, OK, back, home, volume, mute, power, play/pause, and typing with your phone keyboard.
-- **Apps**: see every app on the TV. Open, force stop, clear data, turn off or on, uninstall your own apps, and install an APK from your phone.
-- **Detox**: one tap turns off the bloat (sponsored rows, screensavers, promo apps). Apps are turned off, never deleted, and every change can be undone.
-- **Boost**: animations off, screensaver off, a sleep timer, kill background apps, free RAM before and after, and Glowlauncher, an optional clean home screen.
+**Make your old Android TV feel new again, from your phone.** Turn off the bloat, free up memory, swap the cluttered home screen for a clean glowing one, and control everything with a remote on your phone.
 
-No account, no ads, no tracking. Everything stays on your phone.
+<p align="center"><img src=".github/assets/glowlauncher.gif" width="720" alt="Glowlauncher on a TV: a big clock and a dock of apps with a glow that fades through colours as focus moves"></p>
+
+<p align="center">
+  <img src=".github/assets/remote.jpg" width="180" alt="KonnectTV remote with d-pad and symbol buttons">
+  <img src=".github/assets/apps.jpg" width="180" alt="KonnectTV app manager with real app icons">
+  <img src=".github/assets/detox.jpg" width="180" alt="KonnectTV Detox list of apps safe to turn off">
+  <img src=".github/assets/boost.jpg" width="180" alt="KonnectTV Boost with RAM and storage rings and the Glowlauncher orb">
+</p>
+
+<p align="center"><a href="https://github.com/yashoncode/konnect-tv/releases/latest"><b>⬇ Download the latest KonnectTV</b></a></p>
+
+## Features
+
+- ✨ **Glowlauncher.** A calm home screen for your TV: a big clock and only the apps you pick, in one glowing dock. Choose the glow colour, or RGB to fade through all of them.
+- 🧹 **Detox.** One tap turns off sponsored rows, screensavers and promo apps. Apps are turned off, never deleted, and every change can be undone.
+- ⚡ **Boost.** See free RAM and storage, turn off animations so menus open instantly, stop the screensaver, set a sleep timer and clear background apps.
+- 🎮 **Remote.** D-pad, OK, back, home, volume, mute, power and play/pause, with haptics on every tap. Type on the TV with your phone keyboard.
+- 📦 **App manager.** Every app on the TV with its real icon and name. Open, force stop, clear data, turn off or on, uninstall your own apps, and install an APK from your phone.
+- 📺 **Many TVs.** Finds Android TVs on your Wi-Fi by itself and remembers them. Switch between TVs from the top bar.
+- 🌗 **Light and dark.** One tap on the top bar.
+- 🔒 **Private.** No account, no ads, no tracking. Everything stays on your phone and your TV.
 
 ## Install
 
@@ -71,6 +88,16 @@ keyPassword=...
 ## Credits
 
 Inspired by [TV Detox](https://github.com/Ansub/tv-detox). Glowlauncher is based on TV Detox's home screen.
+
+## Support KonnectTV
+
+KonnectTV is free, has no ads and always will. I build it in my spare time because I love using it.
+If it made your TV a little faster and you'd like to say thanks, you can buy me a coffee.
+It's completely optional, and every coffee is truly appreciated. ☕
+
+<p align="center"><a href="https://buymeacoffee.com/yashwynth"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee"></a></p>
+
+A star on GitHub or sharing KonnectTV with a friend helps just as much. Thank you for using it! ❤️
 
 ## License
 
