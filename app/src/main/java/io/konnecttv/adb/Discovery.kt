@@ -9,7 +9,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import java.net.Inet4Address
-import java.util.concurrent.Executors
+import java.util.concurrent.Executor
 
 /** A TV seen on the Wi-Fi. Ports are null until that service shows up. */
 data class FoundTv(
@@ -35,7 +35,9 @@ fun discoverTvs(context: Context): Flow<List<FoundTv>> = callbackFlow {
     // NSD drops multicast packets unless the app holds this lock.
     val lock = context.getSystemService(WifiManager::class.java).createMulticastLock("konnecttv").apply { acquire() }
     val tvs = LinkedHashMap<String, FoundTv>()
-    val executor = Executors.newSingleThreadExecutor()
+    // Run callbacks inline on NSD's own thread. A private executor crashes the app: NSD posts
+    // onServiceInfoCallbackUnregistered after we close, and a shut-down executor rejects it.
+    val executor = Executor(Runnable::run)
 
     fun merge(type: String, info: NsdServiceInfo): Unit = synchronized(tvs) {
         val address = if (Build.VERSION.SDK_INT >= 34) {
@@ -79,6 +81,7 @@ fun discoverTvs(context: Context): Flow<List<FoundTv>> = callbackFlow {
     val listeners = listOf(REMOTE, PAIR, CONNECT).map { type ->
         object : NsdManager.DiscoveryListener {
             override fun onServiceFound(info: NsdServiceInfo) {
+                if (isClosedForSend) return
                 if (Build.VERSION.SDK_INT < 34) {
                     synchronized(queue) { queue += type to info }
                     resolveNext()
@@ -107,7 +110,6 @@ fun discoverTvs(context: Context): Flow<List<FoundTv>> = callbackFlow {
         if (Build.VERSION.SDK_INT >= 34) {
             synchronized(callbacks) { callbacks.forEach { runCatching { nsd.unregisterServiceInfoCallback(it) } } }
         }
-        executor.shutdown()
         lock.release()
     }
 }
