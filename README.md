@@ -28,7 +28,7 @@ Measured on a 1 GB Google TV (CHiQ, Android 14): Google TV's own home with apps 
 | Home screen memory | 80 MB | **21 MB** (4× lighter) |
 | Free memory | 255 MB | **308 MB** |
 
-Your TV will differ. The older and more cluttered it is, the bigger the gain.
+Your TV will differ. The older and more cluttered it is, the bigger the gain. Raw output, method and the script to run it yourself: [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
 ## Features
 
