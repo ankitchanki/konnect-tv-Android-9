@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "KonnectTV"
-include(":app")
+include(":app", ":glowlauncher")

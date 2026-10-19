@@ -44,17 +44,12 @@ class LogicTest {
         assertEquals("Hotstar", prettyName("in.startv.hotstar.tv"))
     }
 
-    @Test fun launcherSwapNeverTouchesSettingsOrSetup() {
-        assertTrue(isRivalLauncher("com.google.android.tvlauncher"))
-        assertTrue(isRivalLauncher("com.mitv.tvhome"))
-        assertFalse(isRivalLauncher("com.android.settings"))
-        assertFalse(isRivalLauncher("com.android.tv.settings"))
-        assertFalse(isRivalLauncher("com.google.android.tungsten.setupwraith"))
-        assertFalse(isRivalLauncher("com.ansub.tvhome"))
-        // TV makers' input/tuner apps also answer HOME (boot to Live TV). Turning them off freezes the TV.
-        assertFalse(isRivalLauncher("com.mediatek.wwtv.tvcenter"))
-        assertFalse(isRivalLauncher("com.homwee.tvcenter"))
-        assertFalse(isRivalLauncher("com.realtek.tv"))
+    @Test fun homeServiceKeepsOtherAccessibilityServices() {
+        val svc = "io.konnecttv.glowlauncher/io.konnecttv.glowlauncher.HomeButtonService"
+        assertEquals(svc, withService("null", svc))
+        assertEquals(svc, withService("", svc))
+        assertEquals("a/b.C:$svc", withService("a/b.C", svc))
+        assertEquals("a/b.C:$svc", withService("a/b.C:$svc", svc))
     }
 
     @Test fun shellQuoting() {

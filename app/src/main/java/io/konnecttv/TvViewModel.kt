@@ -19,17 +19,18 @@ import io.konnecttv.data.SavedTv
 import io.konnecttv.data.Store
 import io.konnecttv.data.TvApp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.URL
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -42,23 +43,38 @@ sealed interface Conn {
 
 data class Memory(val totalKb: Long, val freeKb: Long, val storageTotalKb: Long = 0, val storageFreeKb: Long = 0)
 
+/** Where turning on Glowlauncher has got to, for the progress screen. */
+data class LauncherSetup(val step: Int, val startedAt: Long, val done: Boolean = false, val error: String? = null)
+
+/** Glow colours Glowlauncher can use, picked when turning it on. [RGB_GLOW] fades through all of them. */
+data class GlowAccent(val name: String, val rgb: Long)
+
+const val RGB_GLOW = -1L
+
+val GLOW_ACCENTS = listOf(
+    GlowAccent("Mint", 0x3FD6A0), GlowAccent("Sky", 0x4FB3FF), GlowAccent("Violet", 0x9B7BFF),
+    GlowAccent("Rose", 0xFF6B9A), GlowAccent("Amber", 0xFFB547), GlowAccent("Snow", 0xE8ECF2), GlowAccent("RGB", RGB_GLOW),
+)
+
+val LAUNCHER_STEPS = listOf("Making room on the TV", "Installing Glowlauncher", "Setting it as the home screen", "Adding your apps")
+
 data class Tweaks(val animationsOff: Boolean, val screensaverOff: Boolean, val sleepMinutes: Int?, val launcherOn: Boolean)
 
-/** Where the clean TV home screen is published. */
-private const val LAUNCHER_URL = "https://github.com/Ansub/tv-detox/releases/latest/download/tvhome.apk"
-private const val LAUNCHER_PKG = "com.ansub.tvhome"
+/** Our clean TV home screen, shipped inside this app's assets. */
+private const val LAUNCHER_PKG = "io.konnecttv.glowlauncher"
+/** The clean launcher older KonnectTV versions downloaded; replaced by Glowlauncher. */
+private const val OLD_LAUNCHER_PKG = "com.ansub.tvhome"
 /** Where our APK sits on the TV while it draws icons; deleted right after. */
 private const val ICON_HELPER = "/data/local/tmp/konnecttv-icons.jar"
-private const val LAUNCHER_ACTIVITY = "$LAUNCHER_PKG/.MainActivity"
+private const val LAUNCHER_ACTIVITY = "$LAUNCHER_PKG/.HomeActivity"
 
-/**
- * A HOME app the clean launcher may turn off: only things named as launchers or home screens.
- * Settings, setup and TV makers' input/tuner apps (which answer HOME to boot into Live TV) also
- * show up as HOME apps; turning those off freezes the TV, so anything else is left alone.
- */
-internal fun isRivalLauncher(pkg: String): Boolean =
-    pkg != LAUNCHER_PKG && "settings" !in pkg && "setup" !in pkg &&
-        ("launcher" in pkg || pkg.endsWith(".tvhome") || pkg.endsWith(".home"))
+/** Glowlauncher's accessibility service that answers Home on TVs that keep their own home (Google TV). */
+private const val HOME_SERVICE = "$LAUNCHER_PKG/$LAUNCHER_PKG.HomeButtonService"
+private val HOME_SERVICE_SETTINGS = setOf("secure:enabled_accessibility_services", "secure:accessibility_enabled")
+
+/** The TV's enabled accessibility services with ours added, keeping whatever else was on. */
+internal fun withService(enabled: String, service: String): String =
+    (enabled.trim().split(':').filter { it.isNotBlank() && it != "null" } + service).distinct().joinToString(":")
 
 private val ANIMATION_KEYS = listOf("window_animation_scale", "transition_animation_scale", "animator_duration_scale")
 
@@ -314,7 +330,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private fun readTweaks(a: Adb): Tweaks {
         val v = a.sh(
             "settings get global window_animation_scale; settings get secure screensaver_enabled; " +
-                "settings get system screen_off_timeout; pm path $LAUNCHER_PKG"
+                "settings get system screen_off_timeout; (pm path $LAUNCHER_PKG; pm path $OLD_LAUNCHER_PKG) 2>/dev/null | head -1"
         ).lines()
         return Tweaks(
             animationsOff = v.getOrNull(0)?.toFloatOrNull() == 0f,
@@ -460,7 +476,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         say("Freed ${((memory.value!!.freeKb - before).coerceAtLeast(0)) / 1024} MB.")
     }
 
-    fun setLauncher(on: Boolean, homeApps: List<String> = emptyList()) = work { a -> if (on) installLauncher(a, homeApps) else removeLauncher(a) }
+    fun setLauncher(on: Boolean, homeApps: List<String> = emptyList(), accent: Long = GLOW_ACCENTS.first().rgb) =
+        work { a -> if (on) installLauncher(a, homeApps, accent) else removeLauncher(a) }
 
     /** Apps the clean home can show: anything with a TV launcher icon, preinstalled ones (Netflix, Prime) included. */
     val homeChoices = MutableStateFlow<List<TvApp>?>(null)
@@ -475,8 +492,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Changes which apps the clean home shows, while it is already on. */
-    fun setHomeApps(homeApps: List<String>) = work { a ->
-        sendHomeApps(a, homeApps)
+    fun setHomeApps(homeApps: List<String>, accent: Long) = work { a ->
+        sendHomeApps(a, homeApps, accent)
         a.keyevent(io.konnecttv.adb.Key.HOME)
         say("Home screen updated.")
     }
@@ -491,53 +508,76 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     /** What the user last put on this TV's clean home, so editing starts from their picks. */
     fun homePicks(): Set<String>? = tv?.let { prefs.getStringSet("home-${it.id}", null) }
 
-    private fun sendHomeApps(a: Adb, homeApps: List<String>) {
+    /** The glow colour last picked for this TV, as 0xRRGGBB. */
+    fun homeAccent(): Long = tv?.let { prefs.getLong("accent-${it.id}", GLOW_ACCENTS.first().rgb) } ?: GLOW_ACCENTS.first().rgb
+
+    private fun sendHomeApps(a: Adb, homeApps: List<String>, accent: Long) {
         if (homeApps.isEmpty()) return
-        tv?.let { prefs.edit().putStringSet("home-${it.id}", homeApps.toSet()).apply() }
-        a.sh("am start -n $LAUNCHER_ACTIVITY --es apps '${homeApps.joinToString(",")}' --es stamp ${System.currentTimeMillis() / 1000}")
+        tv?.let { prefs.edit().putStringSet("home-${it.id}", homeApps.toSet()).putLong("accent-${it.id}", accent).apply() }
+        val hex = if (accent == RGB_GLOW) "rgb" else "%06X".format(accent and 0xFFFFFF)
+        a.sh("am start -n $LAUNCHER_ACTIVITY --es apps '${homeApps.joinToString(",")}' --es accent $hex --es stamp ${System.currentTimeMillis() / 1000}")
     }
 
-    private suspend fun installLauncher(a: Adb, homeApps: List<String>) {
-        say("Downloading clean launcher…")
-        val file = File(getApplication<Application>().cacheDir, "tvhome.apk")
-        URL(LAUNCHER_URL).openStream().use { input -> file.outputStream().use { input.copyTo(it) } }
-        // Switching home is the heaviest thing a TV does; on 1-2 GB TVs it can stall for minutes
-        // when memory is full. Clear background apps first so the switch has room.
-        a.sh("am kill-all")
-        say("Installing… If the TV shows a Play Protect message, allow it on the TV.")
-        val result = file.inputStream().use { a.install(it, file.length()) }
-        if (!result.startsWith("Success")) error("Install failed: $result")
-        if (history.value.none { it.kind == "install" && it.target == LAUNCHER_PKG }) {
-            record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "Clean launcher installed"))
-        }
-        say("Switching home screen… The TV may pause for a minute. Leave it on.")
-        // Become home first, then open once with the picked apps: launching it before the switch
-        // meant starting it twice on a TV that's short of memory.
-        a.sh("cmd role add-role-holder --user 0 android.app.role.HOME $LAUNCHER_PKG; cmd package set-home-activity $LAUNCHER_ACTIVITY")
-        // Most TVs' own home screens keep winning Home until they are turned off.
-        if (!isHomeActive(a)) {
-            // Only real launchers. Settings and setup also answer HOME (as a fallback) and must stay on.
-            val others = a.sh("cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME")
-                .lines().filter { '/' in it }.map { it.trim().substringBefore('/') }.toSet()
-                .filter(::isRivalLauncher)
-            for (pkg in others) {
-                if ("disabled" in a.sh("pm disable-user --user 0 $pkg")) {
-                    record(Change(System.currentTimeMillis(), "home", pkg, "${debloat.label(pkg)} turned off for clean launcher"))
+    val launcherSetup = MutableStateFlow<LauncherSetup?>(null)
+
+    fun closeLauncherSetup() { launcherSetup.value = null }
+
+    private fun setupStep(step: Int) = launcherSetup.update { it?.copy(step = step) }
+
+    private suspend fun installLauncher(a: Adb, homeApps: List<String>, accent: Long) {
+        launcherSetup.value = LauncherSetup(0, System.currentTimeMillis())
+        try {
+            // Switching home is the heaviest thing a TV does; on 1-2 GB TVs it can stall for minutes
+            // when memory is full. Clear background apps first so the switch has room.
+            a.sh("am kill-all")
+            setupStep(1)
+            val file = File(getApplication<Application>().cacheDir, "glowlauncher.apk")
+            getApplication<Application>().assets.open("glowlauncher.apk").use { input -> file.outputStream().use { input.copyTo(it) } }
+            val result = file.inputStream().use { a.install(it, file.length()) }
+            if (!result.startsWith("Success")) error("Install failed: $result")
+            if (history.value.none { it.kind == "install" && it.target == LAUNCHER_PKG }) {
+                record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "Glowlauncher installed"))
+            }
+            // The launcher older versions downloaded: two home screens would fight over Home.
+            history.value.filter { it.kind == "install" && it.target == OLD_LAUNCHER_PKG }.forEach { undoOne(a, it) }
+            setupStep(2)
+            // Older versions turned off whole launcher apps; give them back. Nothing is turned off any more.
+            history.value.filter { it.kind == "home" }.forEach { undoOne(a, it) }
+            // Become home first, then open once with the picked apps: launching it before the switch
+            // meant starting it twice on a TV that's short of memory.
+            a.sh("cmd role add-role-holder --user 0 android.app.role.HOME $LAUNCHER_PKG; cmd package set-home-activity $LAUNCHER_ACTIVITY")
+            if (!isHomeActive(a)) {
+                // The TV ranks its own home above any installed app (Google TV does). Leave it on and
+                // let Glowlauncher's Home button service answer Home instead.
+                val enabled = a.sh("settings get secure enabled_accessibility_services")
+                putSetting(a, "secure", "enabled_accessibility_services", withService(enabled, HOME_SERVICE), "Home button opens Glowlauncher")
+                putSetting(a, "secure", "accessibility_enabled", "1", "Home button opens Glowlauncher")
+                delay(1500)
+                if ("Glowlauncher Home button" !in a.sh("dumpsys accessibility | grep 'Bound services'")) {
+                    undoHomeService(a)
+                    error("The TV didn't start Glowlauncher's Home button service, so Home would still open the TV's own home. Nothing was changed.")
                 }
             }
-            a.sh("cmd package set-home-activity $LAUNCHER_ACTIVITY")
+            setupStep(3)
+            sendHomeApps(a, homeApps, accent)
+            a.keyevent(io.konnecttv.adb.Key.HOME)
+            tweaks.value = readTweaks(a)
+            apps.value = readApps(a)
+            launcherSetup.update { it?.copy(step = LAUNCHER_STEPS.size, done = true) }
+        } catch (e: Exception) {
+            launcherSetup.update { it?.copy(error = e.message ?: "Something went wrong.") }
+            throw e
         }
-        sendHomeApps(a, homeApps)
-        a.keyevent(io.konnecttv.adb.Key.HOME)
-        tweaks.value = readTweaks(a)
-        apps.value = readApps(a)
-        say(if (isHomeActive(a)) "Clean launcher is on. Press Home on the remote." else "Installed. If the TV asks which home to use, pick Home and Always.")
     }
+
+    private suspend fun undoHomeService(a: Adb) =
+        history.value.filter { it.kind == "setting" && it.target in HOME_SERVICE_SETTINGS }.forEach { undoOne(a, it) }
 
     private suspend fun removeLauncher(a: Adb) {
         history.value.filter { it.kind == "home" }.forEach { undoOne(a, it) }
+        undoHomeService(a)
+        history.value.filter { it.kind == "install" && (it.target == LAUNCHER_PKG || it.target == OLD_LAUNCHER_PKG) }.forEach { undoOne(a, it) }
         a.sh("pm uninstall $LAUNCHER_PKG")
-        history.value.filter { it.kind == "install" && it.target == LAUNCHER_PKG }.forEach { forgetChange(it) }
         tweaks.value = readTweaks(a)
         apps.value = readApps(a)
         say("TV's own home screen is back.")

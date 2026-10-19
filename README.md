@@ -7,7 +7,7 @@ KonnectTV is a small Android app that connects to your Android TV or Google TV o
 - **Remote**: d-pad, OK, back, home, volume, mute, power, play/pause, and typing with your phone keyboard.
 - **Apps**: see every app on the TV. Open, force stop, clear data, turn off or on, uninstall your own apps, and install an APK from your phone.
 - **Detox**: one tap turns off the bloat (sponsored rows, screensavers, promo apps). Apps are turned off, never deleted, and every change can be undone.
-- **Boost**: animations off, screensaver off, a sleep timer, kill background apps, free RAM before and after, and an optional clean launcher.
+- **Boost**: animations off, screensaver off, a sleep timer, kill background apps, free RAM before and after, and Glowlauncher, an optional clean home screen.
 
 No account, no ads, no tracking. Everything stays on your phone.
 
@@ -36,12 +36,16 @@ After the first time, KonnectTV remembers the TV and reconnects in one tap.
 - Apps are **turned off** (`pm disable-user`), never deleted. Undo one change or everything from **Detox › History**.
 - KonnectTV never turns off Google Play, Play services, keyboards, Bluetooth, HDMI/TV inputs, Settings or the system UI. This applies to Detox and the app manager.
 - Only apps you installed yourself can be uninstalled. System apps can only be turned off.
-- The clean launcher only turns off other launchers and home screens. It never turns off the TV maker's Live TV or input app, even when that app also answers the Home button.
+- Glowlauncher only turns off other launchers and home screens. It never turns off the TV maker's Live TV or input app, even when that app also answers the Home button.
 - The safe-to-turn-off list is in [`app/src/main/assets/debloat.json`](app/src/main/assets/debloat.json). Each entry has a plain-English reason. Pull requests for more brands are welcome.
 
 Works on Android TV and Google TV: Sony, TCL, Hisense, Philips, Xiaomi, Chromecast with Google TV, NVIDIA Shield and others. Samsung (Tizen), LG (webOS) and Roku don't run Android, so they can't be cleaned this way.
 
-**Turning on the clean launcher can freeze low-memory TVs for a few minutes.** Changing the home screen is the heaviest thing a TV does: it installs an app, changes the Home app and restarts the home screen. TVs with 1–2 GB of memory can stop responding while this happens. KonnectTV clears background apps first to make room. If the TV freezes, leave it on and don't unplug it. It recovers by itself, and the next start is normal.
+## Glowlauncher
+
+Glowlauncher is KonnectTV's own home screen for the TV: a big clock and the apps you pick in one glowing dock, with Inputs, Settings and network at the top right. It ships inside KonnectTV (about 45 KB), so nothing is downloaded. On the TV, hold OK or press Menu on an app to move or remove it. The **+** tile adds one. Turn it off from **Boost** to get the TV's own home back.
+
+**Turning it on can freeze low-memory TVs for a minute or two.** Changing the home screen is the heaviest thing a TV does. KonnectTV clears background apps first and shows each step on your phone while it works. If the TV freezes, leave it on and don't unplug it. It recovers by itself.
 
 > Use at your own risk. This is what works on the TVs we tried. It is not professional advice.
 
@@ -53,7 +57,7 @@ You need JDK 17+ and the Android SDK (platform 37).
 ./gradlew :app:testDebugUnitTest :app:assembleRelease
 ```
 
-The app uses Kotlin and Jetpack Compose. ADB runs on [libadb-android](https://github.com/MuntashirAkon/libadb-android), which handles pairing and TLS. The frosted glass uses [Haze](https://github.com/chrisbanes/haze).
+The app uses Kotlin and Jetpack Compose. Glowlauncher (`glowlauncher/`) uses plain Android views so it stays small and runs on Android TV 5.0 and newer. ADB runs on [libadb-android](https://github.com/MuntashirAkon/libadb-android), which handles pairing and TLS. The frosted glass uses [Haze](https://github.com/chrisbanes/haze).
 
 To sign a release build, create `keystore.properties` in the project root. Never commit it.
 
@@ -66,7 +70,7 @@ keyPassword=...
 
 ## Credits
 
-Inspired by [TV Detox](https://github.com/Ansub/tv-detox). The optional clean launcher is TV Detox's home screen, downloaded from its releases.
+Inspired by [TV Detox](https://github.com/Ansub/tv-detox). Glowlauncher is based on TV Detox's home screen.
 
 ## License
 

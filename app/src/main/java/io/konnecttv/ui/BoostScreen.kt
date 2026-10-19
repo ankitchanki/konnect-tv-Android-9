@@ -1,7 +1,12 @@
 package io.konnecttv.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -26,7 +31,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,6 +45,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -45,10 +53,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.konnecttv.GLOW_ACCENTS
+import io.konnecttv.LAUNCHER_STEPS
+import io.konnecttv.RGB_GLOW
+import io.konnecttv.LauncherSetup
 import io.konnecttv.TabBarClearance
 import io.konnecttv.TvViewModel
 import io.konnecttv.data.SavedTv
 import io.konnecttv.data.TvApp
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 private val SleepChoices = listOf(5, 15, 30, 60)
@@ -112,16 +125,24 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
         }
 
         GlassSheet(launcherMenu, onDismiss = { launcherMenu = false }) {
-            Text("Clean launcher", style = Body.copy(fontSize = 17.sp))
+            Text("Glowlauncher", style = Body.copy(fontSize = 17.sp))
             Text("Active on ${tv.name}.", style = Small)
             PrimaryButton("Edit home apps") { launcherMenu = false; vm.loadHomeChoices(); pickHome = true }
             SecondaryButton("Turn off, bring back the TV's own home") { launcherMenu = false; vm.setLauncher(false) }
         }
 
+        val setup by vm.launcherSetup.collectAsStateWithLifecycle()
+        setup?.let { st ->
+            // Can't be swiped away while the TV is switching: closing it mid-way hides the only sign that work is going on.
+            GlassSheet(true, onDismiss = { if (st.done || st.error != null) vm.closeLauncherSetup() }) {
+                SetupProgress(st) { vm.closeLauncherSetup() }
+            }
+        }
+
         GlassSheet(pickHome, onDismiss = { pickHome = false }) {
-            HomePicker(vm, editing = launcherOn) { picked ->
+            HomePicker(vm, editing = launcherOn) { picked, accent ->
                 pickHome = false
-                if (launcherOn) vm.setHomeApps(picked) else vm.setLauncher(true, picked)
+                if (launcherOn) vm.setHomeApps(picked, accent) else vm.setLauncher(true, picked, accent)
             }
         }
     }
@@ -156,7 +177,7 @@ private fun LauncherOrb(on: Boolean, busy: Boolean, tvName: String, onClick: () 
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text("Clean launcher", style = Body.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold))
+            Text("Glowlauncher", style = Body.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold))
             Spacer(Modifier.height(8.dp))
             val pill = when {
                 busy -> "WORKING…"
@@ -175,9 +196,71 @@ private fun LauncherOrb(on: Boolean, busy: Boolean, tvName: String, onClick: () 
     }
 }
 
+/** Turning Glowlauncher on: every step as it happens, a running clock, and why the TV may look stuck. */
+@Composable
+private fun SetupProgress(st: LauncherSetup, onClose: () -> Unit) {
+    val running = !st.done && st.error == null
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(running) { while (running) { now = System.currentTimeMillis(); delay(1000) } }
+    val secs = ((now - st.startedAt) / 1000).coerceAtLeast(0)
+    val spin = rememberInfiniteTransition(label = "spin")
+    val angle by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "angle")
+    val glow by spin.animateFloat(0.15f, 0.4f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "glow")
+
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(120.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val w = 5.dp.toPx()
+                val inset = w / 2 + 2.dp.toPx()
+                val arcSize = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2)
+                val tl = androidx.compose.ui.geometry.Offset(inset, inset)
+                val ok = st.error == null
+                drawCircle(Brush.radialGradient(listOf((if (ok) Mint else C.Danger).copy(alpha = if (running) glow else 0.25f), Color.Transparent)), radius = size.minDimension / 2)
+                drawArc(C.Border, 0f, 360f, false, tl, arcSize, style = Stroke(w))
+                if (running) drawArc(Brush.sweepGradient(listOf(Color.Transparent, Mint, Cyan)), angle, 270f, false, tl, arcSize, style = Stroke(w, cap = StrokeCap.Round))
+                else drawArc(if (ok) Mint else C.Danger, -90f, 360f, false, tl, arcSize, style = Stroke(w))
+            }
+            Glyph(Glyphs.Sparkle, if (st.error != null) C.Danger else C.Accent, 38.dp, Modifier.rotate(if (running) angle / 4 else 0f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            when { st.error != null -> "Didn't finish"; st.done -> "Glowlauncher is on"; else -> "Turning on Glowlauncher" },
+            style = Body.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+        )
+        Text(String.format(Locale.US, "%d:%02d", secs / 60, secs % 60), style = Small.copy(fontFeatureSettings = "tnum"))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LAUNCHER_STEPS.forEachIndexed { i, label ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) {
+                    when {
+                        i < st.step -> Check(true)
+                        i == st.step && st.error != null -> Text("!", style = Body.copy(color = C.Danger, fontWeight = FontWeight.Bold))
+                        i == st.step -> CircularProgressIndicator(color = C.Accent, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                        else -> Box(Modifier.size(8.dp).clip(CircleShape).background(C.Border))
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(label, style = Body.copy(color = if (i <= st.step) C.Text else C.Muted))
+            }
+        }
+    }
+    when {
+        st.error != null -> Text(st.error, style = Small.copy(color = C.Danger))
+        st.done -> Text("Press Home on the remote to see it.", style = Small)
+        else -> Text(
+            "The TV can look frozen for up to 2 minutes while it switches home screens. That's normal. " +
+                "Leave it on and don't unplug it.",
+            style = Small.copy(color = C.Muted),
+            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(C.Raised).padding(12.dp),
+        )
+    }
+    if (!running) PrimaryButton("Done", onClick = onClose)
+}
+
 /** Choose what the clean home shows. Preinstalled apps like Netflix and Prime are here too. */
 @Composable
-private fun HomePicker(vm: TvViewModel, editing: Boolean, onDone: (List<String>) -> Unit) {
+private fun HomePicker(vm: TvViewModel, editing: Boolean, onDone: (List<String>, Long) -> Unit) {
     val choices by vm.homeChoices.collectAsStateWithLifecycle()
     val icons by vm.icons.collectAsStateWithLifecycle()
     val list = choices
@@ -185,8 +268,22 @@ private fun HomePicker(vm: TvViewModel, editing: Boolean, onDone: (List<String>)
         val saved = vm.homePicks()
         mutableStateOf(list.orEmpty().filter { saved?.contains(it.pkg) ?: defaultOnHome(it) }.map { it.pkg }.toSet())
     }
-    Text(if (editing) "Home screen apps" else "Pick apps for your home", style = Body.copy(fontSize = 17.sp))
-    Text("Your clean home shows these, plus inputs and a clock.", style = Small)
+    var accent by remember { mutableLongStateOf(vm.homeAccent()) }
+    Text(if (editing) "Glowlauncher" else "Set up Glowlauncher", style = Body.copy(fontSize = 17.sp))
+    GlowPreview(accent)
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        GLOW_ACCENTS.forEach { g ->
+            val on = g.rgb == accent
+            val fill = if (g.rgb == RGB_GLOW) Modifier.background(Brush.sweepGradient(Rainbow)) else Modifier.background(Color(0xFF000000 or g.rgb))
+            Box(
+                Modifier.size(34.dp).clip(CircleShape).then(fill)
+                    .border(if (on) 3.dp else 1.dp, if (on) C.Text else C.Border, CircleShape)
+                    .clickable { accent = g.rgb },
+            )
+        }
+    }
+    Text("Glow: ${GLOW_ACCENTS.first { it.rgb == accent }.name}", style = Small)
+    Text("Apps on your home", style = Section)
     if (list == null) {
         Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = C.Accent, strokeWidth = 2.dp) }
     } else {
@@ -206,22 +303,46 @@ private fun HomePicker(vm: TvViewModel, editing: Boolean, onDone: (List<String>)
             }
         }
     }
-    if (!editing) {
-        // Switching home is heavy; low-memory TVs can stall while they catch up.
-        Text(
-            "Heads-up: on TVs with 1–2 GB of memory, the TV can freeze for a few minutes while it switches home. " +
-                "Leave it on and don't unplug it. It recovers by itself.",
-            style = Small.copy(color = C.Muted),
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(C.Raised).padding(12.dp),
-        )
-    }
     PrimaryButton(
         when {
             editing -> "Save (${picked.size} apps)"
             else -> "Turn on with ${picked.size} apps"
         },
         enabled = list != null && picked.isNotEmpty(),
-    ) { onDone(list.orEmpty().map { it.pkg }.filter { it in picked }) }
+    ) { onDone(list.orEmpty().map { it.pkg }.filter { it in picked }, accent) }
+}
+
+private val Rainbow = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
+
+/** A tiny Glowlauncher: the clock over a dock, lit in the picked colour (or fading through them all for RGB). */
+@Composable
+private fun GlowPreview(accent: Long) {
+    val hue by rememberInfiniteTransition(label = "rgb").animateFloat(0f, 360f, infiniteRepeatable(tween(8000, easing = LinearEasing)), label = "hue")
+    val target = if (accent == RGB_GLOW) Color.hsv(hue, 0.65f, 1f) else Color(0xFF000000 or accent)
+    val glow by animateColorAsState(target, tween(if (accent == RGB_GLOW) 0 else 400), label = "glow")
+    Box(
+        Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF08090B)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(Brush.radialGradient(listOf(glow.copy(alpha = 0.35f), Color.Transparent), center = center.copy(y = size.height * 0.72f), radius = size.width * 0.38f))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("9:41", style = Body.copy(color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light))
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.clip(RoundedCornerShape(20.dp)).background(Color.White.copy(alpha = 0.06f)).padding(horizontal = 10.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                repeat(5) { i ->
+                    Box(
+                        Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF16191E))
+                            .then(if (i == 0) Modifier.border(2.dp, lerp(glow, Color.White, 0.5f), RoundedCornerShape(6.dp)) else Modifier),
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun defaultOnHome(app: TvApp) = !app.system || PopularHome.any { it in app.pkg }

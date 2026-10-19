@@ -21,8 +21,8 @@ android {
         // Android 12+: RenderEffect gives real backdrop blur everywhere.
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
         // Phones only: x86 builds would double Conscrypt's native size for emulators and Chromebooks.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
@@ -71,6 +71,26 @@ android {
 
 kotlin {
     compilerOptions { jvmTarget = JvmTarget.JVM_17 }
+}
+
+/** Puts the Glowlauncher APK in the app's assets, so turning it on needs no download. */
+abstract class BundleGlowlauncher : DefaultTask() {
+    @get:InputDirectory abstract val apkDir: DirectoryProperty
+    @get:OutputDirectory abstract val outDir: DirectoryProperty
+
+    @TaskAction fun copy() {
+        val apk = apkDir.asFileTree.matching { include("*.apk") }.singleFile
+        apk.copyTo(outDir.file("glowlauncher.apk").get().asFile, overwrite = true)
+    }
+}
+
+val bundleGlowlauncher = tasks.register<BundleGlowlauncher>("bundleGlowlauncher") {
+    dependsOn(":glowlauncher:assembleRelease")
+    apkDir.set(rootProject.layout.projectDirectory.dir("glowlauncher/build/outputs/apk/release"))
+}
+
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(bundleGlowlauncher, BundleGlowlauncher::outDir) }
 }
 
 dependencies {
