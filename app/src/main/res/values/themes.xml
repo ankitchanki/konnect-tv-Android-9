@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.KonnectTV" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:windowSplashScreenBackground">@color/bg</item>
+    </style>
+    <color name="bg">#0C0C0F</color>
+    <color name="accent">#7CF0B0</color>
+</resources>
