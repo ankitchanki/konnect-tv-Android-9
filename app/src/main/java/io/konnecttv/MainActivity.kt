@@ -7,12 +7,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -32,10 +33,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -61,6 +60,7 @@ import io.konnecttv.ui.Tab
 import io.konnecttv.ui.TabIcon
 import io.konnecttv.ui.glass
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val vm: TvViewModel by viewModels()
@@ -68,7 +68,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(SystemBarStyle.dark(android.graphics.Color.TRANSPARENT), SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
+        C.light = getSharedPreferences("konnecttv", MODE_PRIVATE).getBoolean("light", false)
         setContent {
+            // Status and navigation bar icons follow the theme.
+            LaunchedEffect(C.light) {
+                val t = android.graphics.Color.TRANSPARENT
+                val style = if (C.light) SystemBarStyle.light(t, t) else SystemBarStyle.dark(t)
+                enableEdgeToEdge(style, style)
+            }
             val haze = remember { HazeState() }
             val sheets = remember { SheetHost() }
             val press = LocalIndication.current as IndicationNodeFactory
@@ -81,14 +88,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun Root(vm: TvViewModel) {
     val conn by vm.conn.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(Tab.Remote) }
+    // Tabs sit side by side: swipe or tap the bar.
+    val pager = rememberPagerState { Tab.entries.size }
+    val scope = rememberCoroutineScope()
     val message by vm.message.collectAsStateWithLifecycle()
 
     Box(Modifier.fillMaxSize().background(C.Bg)) {
         Box(Modifier.fillMaxSize().hazeSource(LocalHaze.current).statusBarsPadding()) {
             when (val c = conn) {
-                is Conn.On -> Crossfade(tab, label = "tab") {
-                    when (it) {
+                is Conn.On -> HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
+                    when (Tab.entries[page]) {
                         Tab.Remote -> RemoteScreen(vm, c.tv)
                         Tab.Apps -> AppsScreen(vm)
                         Tab.Detox -> DetoxScreen(vm)
@@ -98,7 +107,9 @@ private fun Root(vm: TvViewModel) {
                 else -> ConnectScreen(vm, (c as? Conn.Busy)?.text)
             }
         }
-        if (conn is Conn.On) TabBar(tab, Modifier.align(Alignment.BottomCenter)) { tab = it }
+        if (conn is Conn.On) TabBar(Tab.entries[pager.currentPage], Modifier.align(Alignment.BottomCenter)) {
+            scope.launch { pager.animateScrollToPage(it.ordinal) }
+        }
         SheetOverlay(LocalSheetHost.current)
 
         // Short status line, floating above everything.

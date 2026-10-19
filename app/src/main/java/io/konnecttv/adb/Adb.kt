@@ -87,6 +87,14 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
             stream.readUntil { "Success" in it || "Failure" in it }.trim().lines().last()
         }
 
+    /** Copies a file onto the TV. `exec:` is a raw pipe, so the bytes arrive untouched. */
+    fun push(file: File, remote: String) {
+        openStream("exec:head -c ${file.length()} > $remote; echo $END").use { stream ->
+            stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
+            stream.readUntil { END in it }
+        }
+    }
+
     override fun close() {
         keyShell?.runCatching { close() }
         keyShell = null

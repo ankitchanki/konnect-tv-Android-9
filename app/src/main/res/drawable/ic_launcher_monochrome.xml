@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Themed-icon layer: same mark, one colour, the node cut out by a gap. -->
+<!-- Themed-icon layer: the same TV and sparkle in one colour. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -7,10 +7,10 @@
     android:viewportHeight="108">
     <path
         android:strokeColor="#FF000000"
-        android:strokeWidth="8"
+        android:strokeWidth="5"
         android:strokeLineCap="round"
-        android:pathData="M38,36V72M61,47L71,37M61,61L71,71" />
+        android:pathData="M39,35h30a8,8 0,0 1,8 8v18a8,8 0,0 1,-8 8h-30a8,8 0,0 1,-8 -8v-18a8,8 0,0 1,8 -8zM46,76h16" />
     <path
         android:fillColor="#FF000000"
-        android:pathData="M54,54m-6.5,0a6.5,6.5 0,1 1,13 0a6.5,6.5 0,1 1,-13 0" />
+        android:pathData="M54,42Q55.5,50.5 64,52Q55.5,53.5 54,62Q52.5,53.5 44,52Q52.5,50.5 54,42Z" />
 </vector>

@@ -40,6 +40,7 @@ private enum class Filter(val title: String) { Mine("Installed"), System("System
 @Composable
 fun AppsScreen(vm: TvViewModel) {
     val apps by vm.apps.collectAsStateWithLifecycle()
+    val icons by vm.icons.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(Filter.Mine) }
     var selected by remember { mutableStateOf<TvApp?>(null) }
@@ -71,7 +72,7 @@ fun AppsScreen(vm: TvViewModel) {
             items(shown, key = { it.pkg }) { app ->
                 Card(onClick = { selected = app }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Monogram(app.label)
+                        AppIcon(app.label, icons[app.pkg])
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(app.label, style = Body.copy(color = if (app.disabled) C.Muted else C.Text))
@@ -95,7 +96,7 @@ fun AppsScreen(vm: TvViewModel) {
                 if (armed == id) { action(); selected = null } else armed = id
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Monogram(app.label, 44.dp)
+                AppIcon(app.label, icons[app.pkg], 44.dp)
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(app.label, style = Body.copy(fontSize = 17.sp))

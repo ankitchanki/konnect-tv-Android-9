@@ -1,8 +1,12 @@
 package io.konnecttv
 
 import android.app.Application
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Base64
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.muntashirakon.adb.AdbPairingRequiredException
@@ -26,6 +30,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URL
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 sealed interface Conn {
     data object Off : Conn
@@ -33,13 +40,15 @@ sealed interface Conn {
     data class On(val tv: SavedTv) : Conn
 }
 
-data class Memory(val totalKb: Long, val freeKb: Long)
+data class Memory(val totalKb: Long, val freeKb: Long, val storageTotalKb: Long = 0, val storageFreeKb: Long = 0)
 
 data class Tweaks(val animationsOff: Boolean, val screensaverOff: Boolean, val sleepMinutes: Int?, val launcherOn: Boolean)
 
 /** Where the clean TV home screen is published. */
 private const val LAUNCHER_URL = "https://github.com/Ansub/tv-detox/releases/latest/download/tvhome.apk"
 private const val LAUNCHER_PKG = "com.ansub.tvhome"
+/** Where our APK sits on the TV while it draws icons; deleted right after. */
+private const val ICON_HELPER = "/data/local/tmp/konnecttv-icons.jar"
 private const val LAUNCHER_ACTIVITY = "$LAUNCHER_PKG/.MainActivity"
 
 /** A HOME app the clean launcher may turn off: a launcher, never Settings, setup or anything protected. */
@@ -189,8 +198,92 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshAll() = work { a ->
         apps.value = readApps(a)
+        loadIcons(a)
         memory.value = readMemory(a)
         tweaks.value = readTweaks(a)
+    }
+
+    // ---------- icons ----------
+
+    private val iconDir = File(app.filesDir, "icons").apply {
+        mkdirs()
+        // After an app update, retry the apps that came back without an icon last time.
+        val stamp = File(this, ".version")
+        val version = File(app.applicationInfo.sourceDir).lastModified().toString()
+        if (stamp.takeIf { it.exists() }?.readText() != version) {
+            listFiles()?.filter { it.length() == 0L }?.forEach { it.delete() }
+            stamp.writeText(version)
+        }
+    }
+    val icons = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+
+    /** Fetches icons we haven't cached yet, in the background, without holding up the screen. */
+    private fun loadIcons(a: Adb) = viewModelScope.launch(Dispatchers.IO) {
+        // One fetch at a time, so two refreshes never push the helper over each other.
+        iconLock.withLock { runCatching { fetchIcons(a) }.onFailure { android.util.Log.w("KonnectTV", "icons failed", it) } }
+    }
+    private val iconLock = Mutex()
+
+    /**
+     * ADB has no "get icon" command, so the TV draws them: our own APK goes to /data/local/tmp for a
+     * moment and [io.konnecttv.adb.IconDump] runs from it under app_process. Nothing is installed.
+     * Icons are cached per package forever; an empty file means "this app has none".
+     */
+    private fun fetchIcons(a: Adb) {
+        val pkgs = apps.value.map { it.pkg }
+        val decoded = pkgs.filter { it !in icons.value && png(it).length() > 0 }
+            .mapNotNull { p -> BitmapFactory.decodeFile(png(p).path)?.let { p to it.asImageBitmap() } }
+        icons.value += decoded
+        // Your own apps first so the Installed list fills in fast, then the system ones in one run.
+        val missing = apps.value.filter { !labelFile(it.pkg).exists() }.partition { !it.system }.toList()
+            .map { group -> group.map { it.pkg } }.filter { it.isNotEmpty() }
+        if (missing.isEmpty()) return
+        a.push(helperJar(), ICON_HELPER)
+        try {
+            for (batch in missing) {
+                // One "package<TAB>label<TAB>base64-png" line per app.
+                val got = a.sh("CLASSPATH=$ICON_HELPER app_process /system/bin io.konnecttv.adb.IconDump ${batch.joinToString(" ")} 2>/dev/null")
+                    .lines().map { it.trimEnd('\r').split('\t') }.filter { it.size == 3 }.associateBy { it[0] }
+                // Nothing at all back means the helper didn't run; leave the batch to retry next time.
+                if (got.isEmpty()) continue
+                for (p in batch) {
+                    val (_, label, b64) = got[p] ?: listOf(p, "", "")
+                    png(p).writeBytes(runCatching { Base64.decode(b64, Base64.DEFAULT) }.getOrDefault(ByteArray(0)))
+                    labelFile(p).writeText(label)
+                }
+                icons.value += batch.mapNotNull { p -> png(p).takeIf { it.length() > 0 }?.let { BitmapFactory.decodeFile(it.path) }?.let { p to it.asImageBitmap() } }
+                apps.value = apps.value.map { it.copy(label = label(it.pkg)) }.sortedBy { it.label.lowercase() }
+            }
+        } finally {
+            a.sh("rm -f $ICON_HELPER")
+        }
+    }
+
+    private fun png(pkg: String) = File(iconDir, "$pkg.png")
+    private fun labelFile(pkg: String) = File(iconDir, "$pkg.txt")
+
+    /** The app's real name from the TV once we have it, else our best guess from the package name. */
+    private fun label(pkg: String) = labelFile(pkg).takeIf { it.length() > 0 }?.readText() ?: debloat.label(pkg)
+
+    /** Just our code, compressed: ~1 MB to send instead of the whole 7.6 MB APK with native libraries. */
+    private fun helperJar(): File {
+        val ctx = getApplication<Application>()
+        val apk = File(ctx.applicationInfo.sourceDir)
+        val jar = File(ctx.cacheDir, "icon-helper-${apk.lastModified()}.jar")
+        if (!jar.exists()) {
+            val tmp = File(ctx.cacheDir, "icon-helper.tmp")
+            ZipOutputStream(tmp.outputStream()).use { out ->
+                ZipFile(apk).use { zip ->
+                    zip.entries().asSequence().filter { it.name.matches(Regex("classes\\d*\\.dex")) }.forEach { entry ->
+                        out.putNextEntry(ZipEntry(entry.name))
+                        zip.getInputStream(entry).use { it.copyTo(out) }
+                        out.closeEntry()
+                    }
+                }
+            }
+            tmp.renameTo(jar)
+        }
+        return jar
     }
 
     private fun readApps(a: Adb): List<TvApp> {
@@ -198,14 +291,19 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         fun pkgs(i: Int) = out.getOrElse(i) { "" }.lines().map { it.removePrefix("package:").trim() }.filter { it.isNotEmpty() }.toSet()
         val system = pkgs(1)
         val disabled = pkgs(2)
-        return pkgs(0).map { TvApp(it, debloat.label(it), it in system, it in disabled) }.sortedBy { it.label.lowercase() }
+        return pkgs(0).map { TvApp(it, label(it), it in system, it in disabled) }.sortedBy { it.label.lowercase() }
     }
 
     private fun readMemory(a: Adb): Memory {
         val info = a.sh("cat /proc/meminfo").lines().associate { line ->
             line.substringBefore(':') to (line.substringAfter(':').trim().substringBefore(' ').toLongOrNull() ?: 0L)
         }
-        return Memory(info["MemTotal"] ?: 0, info["MemAvailable"] ?: info["MemFree"] ?: 0)
+        // Internal storage, where apps live: "Filesystem 1K-blocks Used Available Use% Mounted".
+        val df = a.sh("df -k /data | tail -1").split(Regex("\\s+"))
+        return Memory(
+            info["MemTotal"] ?: 0, info["MemAvailable"] ?: info["MemFree"] ?: 0,
+            df.getOrNull(1)?.toLongOrNull() ?: 0, df.getOrNull(3)?.toLongOrNull() ?: 0,
+        )
     }
 
     private fun readTweaks(a: Adb): Tweaks {
@@ -290,6 +388,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         val result = resolver.openInputStream(uri)!!.use { a.install(it, size) }
         say(if (result.startsWith("Success")) "Installed." else "Install failed: $result")
         apps.value = readApps(a)
+        loadIcons(a)
     }
 
     // ---------- detox ----------
@@ -356,9 +455,44 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         say("Freed ${((memory.value!!.freeKb - before).coerceAtLeast(0)) / 1024} MB.")
     }
 
-    fun setLauncher(on: Boolean) = work { a -> if (on) installLauncher(a) else removeLauncher(a) }
+    fun setLauncher(on: Boolean, homeApps: List<String> = emptyList()) = work { a -> if (on) installLauncher(a, homeApps) else removeLauncher(a) }
 
-    private suspend fun installLauncher(a: Adb) {
+    /** Apps the clean home can show: anything with a TV launcher icon, preinstalled ones (Netflix, Prime) included. */
+    val homeChoices = MutableStateFlow<List<TvApp>?>(null)
+
+    fun loadHomeChoices() = work { a ->
+        homeChoices.value = null
+        val launchable = a.sh("cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER")
+            .lines().filter { '/' in it }.map { it.trim().substringBefore('/') }.toSet() - LAUNCHER_PKG
+        if (apps.value.isEmpty()) apps.value = readApps(a)
+        homeChoices.value = apps.value.filter { it.pkg in launchable && !it.disabled }
+        loadIcons(a)
+    }
+
+    /** Changes which apps the clean home shows, while it is already on. */
+    fun setHomeApps(homeApps: List<String>) = work { a ->
+        sendHomeApps(a, homeApps)
+        a.keyevent(io.konnecttv.adb.Key.HOME)
+        say("Home screen updated.")
+    }
+
+    private val prefs = app.getSharedPreferences("konnecttv", 0)
+
+    fun toggleLight() {
+        io.konnecttv.ui.C.light = !io.konnecttv.ui.C.light
+        prefs.edit().putBoolean("light", io.konnecttv.ui.C.light).apply()
+    }
+
+    /** What the user last put on this TV's clean home, so editing starts from their picks. */
+    fun homePicks(): Set<String>? = tv?.let { prefs.getStringSet("home-${it.id}", null) }
+
+    private fun sendHomeApps(a: Adb, homeApps: List<String>) {
+        if (homeApps.isEmpty()) return
+        tv?.let { prefs.edit().putStringSet("home-${it.id}", homeApps.toSet()).apply() }
+        a.sh("am start -n $LAUNCHER_ACTIVITY --es apps '${homeApps.joinToString(",")}' --es stamp ${System.currentTimeMillis() / 1000}")
+    }
+
+    private suspend fun installLauncher(a: Adb, homeApps: List<String>) {
         say("Downloading clean launcher…")
         val file = File(getApplication<Application>().cacheDir, "tvhome.apk")
         URL(LAUNCHER_URL).openStream().use { input -> file.outputStream().use { input.copyTo(it) } }
@@ -368,11 +502,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         if (history.value.none { it.kind == "install" && it.target == LAUNCHER_PKG }) {
             record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "Clean launcher installed"))
         }
-        // Seed the launcher with the user's own apps, like a fresh setup would.
-        val mine = apps.value.filter { !it.system }.joinToString(",") { it.pkg }
-        if (mine.isNotEmpty()) {
-            a.sh("am start -n $LAUNCHER_ACTIVITY --es apps '$mine' --es stamp ${System.currentTimeMillis() / 1000}")
-        }
+        // Seed the launcher with the apps the user picked.
+        sendHomeApps(a, homeApps)
         a.sh("cmd role add-role-holder --user 0 android.app.role.HOME $LAUNCHER_PKG; cmd package set-home-activity $LAUNCHER_ACTIVITY")
         // Most TVs' own home screens keep winning Home until they are turned off.
         if (!isHomeActive(a)) {

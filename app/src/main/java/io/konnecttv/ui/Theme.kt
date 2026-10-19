@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,6 +61,14 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -71,25 +81,37 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 
-/** Mono matte: solid dark surfaces, frosted glass only on things that float. */
+/**
+ * Mono matte: solid surfaces, frosted glass only on things that float. Dark by default; [light]
+ * is Compose state, so flipping it recolours every screen.
+ */
 object C {
-    val Bg = Color(0xFF0C0C0F)
-    val Card = Color(0xFF16161B)
-    val Border = Color(0xFF222229)
-    val Raised = Color(0xFF1F1F26)
-    val RaisedBorder = Color(0xFF2A2A33)
-    val Text = Color(0xFFECEEF4)
-    val Muted = Color(0xFF8A8D99)
-    val Accent = Color(0xFF7CF0B0)
-    val OnAccent = Color(0xFF06140C)
-    val Danger = Color(0xFFFF7A7A)
+    var light by mutableStateOf(false)
+    private fun pick(dark: Long, light: Long) = Color(if (this.light) light else dark)
+
+    val Bg get() = pick(0xFF0C0C0F, 0xFFF4F5F7)
+    val Card get() = pick(0xFF16161B, 0xFFFFFFFF)
+    val Border get() = pick(0xFF222229, 0xFFE3E5EA)
+    val Raised get() = pick(0xFF1F1F26, 0xFFEEF0F3)
+    val RaisedBorder get() = pick(0xFF2A2A33, 0xFFDADDE3)
+    val Text get() = pick(0xFFECEEF4, 0xFF14151A)
+    val Muted get() = pick(0xFF8A8D99, 0xFF6B6F7B)
+    val Accent get() = pick(0xFF7CF0B0, 0xFF12B76A)
+    val OnAccent get() = pick(0xFF06140C, 0xFFFFFFFF)
+    val Danger get() = pick(0xFFFF7A7A, 0xFFE5484D)
+    val GlassTint get() = pick(0x991E1E24, 0xB3FFFFFF)
+    val Hairline get() = pick(0x14FFFFFF, 0x14000000)
+    val Knob get() = pick(0xFF777777, 0xFFB0B4BD)
+    val Handle get() = pick(0xFF555555, 0xFFC4C7CE)
+    val Scrim get() = pick(0x99000000, 0x66000000)
+    val OrbOn get() = pick(0xFF10201A, 0xFFE3F8EE)
 }
 
 val LocalHaze = staticCompositionLocalOf { HazeState() }
 
-private val GlassStyle = HazeStyle(
+private val GlassStyle get() = HazeStyle(
     backgroundColor = C.Bg,
-    tints = listOf(HazeTint(Color(0x991E1E24))),
+    tints = listOf(HazeTint(C.GlassTint)),
     blurRadius = 24.dp,
     noiseFactor = 0.04f,
 )
@@ -99,7 +121,7 @@ private val GlassStyle = HazeStyle(
 fun Modifier.glass(shape: RoundedCornerShape): Modifier = this
     .clip(shape)
     .hazeEffect(LocalHaze.current, GlassStyle)
-    .border(1.dp, Color(0x14FFFFFF), shape)
+    .border(1.dp, C.Hairline, shape)
 
 /**
  * Wraps the press highlight so every clickable also ticks the phone's haptics on press.
@@ -124,10 +146,10 @@ class HapticIndication(private val inner: IndicationNodeFactory) : IndicationNod
     override fun hashCode() = inner.hashCode()
 }
 
-val H1 = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = C.Text)
-val Body = TextStyle(fontSize = 14.sp, color = C.Text)
-val Small = TextStyle(fontSize = 12.sp, color = C.Muted)
-val Section = TextStyle(fontSize = 11.sp, color = C.Muted, letterSpacing = 0.8.sp, fontWeight = FontWeight.Medium)
+val H1 get() = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = C.Text)
+val Body get() = TextStyle(fontSize = 14.sp, color = C.Text)
+val Small get() = TextStyle(fontSize = 12.sp, color = C.Muted)
+val Section get() = TextStyle(fontSize = 11.sp, color = C.Muted, letterSpacing = 0.8.sp, fontWeight = FontWeight.Medium)
 
 @Composable
 fun Card(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
@@ -188,7 +210,7 @@ fun Toggle(on: Boolean, onChange: (Boolean) -> Unit) {
                 .offset(x = x, y = 3.dp)
                 .size(20.dp)
                 .clip(CircleShape)
-                .background(if (on) C.OnAccent else Color(0xFF777777)),
+                .background(if (on) C.OnAccent else C.Knob),
         )
     }
 }
@@ -201,7 +223,7 @@ fun Check(on: Boolean, enabled: Boolean = true) {
             .size(20.dp)
             .clip(shape)
             .background(if (on) C.Accent else Color.Transparent)
-            .border(1.5.dp, if (on) C.Accent else if (enabled) Color(0xFF555555) else C.Border, shape),
+            .border(1.5.dp, if (on) C.Accent else if (enabled) C.Handle else C.Border, shape),
         contentAlignment = Alignment.Center,
     ) {
         if (on) Canvas(Modifier.size(12.dp)) {
@@ -211,7 +233,14 @@ fun Check(on: Boolean, enabled: Boolean = true) {
     }
 }
 
-/** A letter tile, since ADB can't fetch app icons without pulling every APK. */
+/** The app's real icon from the TV, or its letter tile until that arrives (or if it has none). */
+@Composable
+fun AppIcon(label: String, icon: ImageBitmap?, size: Dp = 36.dp) {
+    if (icon == null) Monogram(label, size)
+    else Image(icon, null, Modifier.size(size).clip(RoundedCornerShape(11.dp)))
+}
+
+/** A letter tile, for TVs and for apps whose icon hasn't loaded. */
 @Composable
 fun Monogram(label: String, size: Dp = 36.dp) {
     val hue = remember(label) { (label.hashCode() and 0x7fffffff) % 360 }
@@ -219,9 +248,9 @@ fun Monogram(label: String, size: Dp = 36.dp) {
         Modifier
             .size(size)
             .clip(RoundedCornerShape(11.dp))
-            .background(Color.hsl(hue.toFloat(), 0.25f, 0.22f)),
+            .background(Color.hsl(hue.toFloat(), if (C.light) 0.45f else 0.25f, if (C.light) 0.9f else 0.22f)),
         contentAlignment = Alignment.Center,
-    ) { Text(label.take(1).uppercase(), style = Body.copy(fontWeight = FontWeight.SemiBold, color = Color.hsl(hue.toFloat(), 0.6f, 0.8f))) }
+    ) { Text(label.take(1).uppercase(), style = Body.copy(fontWeight = FontWeight.SemiBold, color = Color.hsl(hue.toFloat(), 0.6f, if (C.light) 0.35f else 0.8f))) }
 }
 
 class Sheet(val onDismiss: () -> Unit, val content: @Composable ColumnScope.() -> Unit)
@@ -261,7 +290,7 @@ fun BoxScope.SheetOverlay(host: SheetHost) {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color(0x99000000))
+                .background(C.Scrim)
                 .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
         )
     }
@@ -271,8 +300,18 @@ fun BoxScope.SheetOverlay(host: SheetHost) {
         enter = slideInVertically { it },
         exit = slideOutVertically { it },
     ) {
+        // Swipe down to close: follows the finger, closes past a threshold or on a quick flick.
+        val drag = remember(last) { Animatable(0f) }
+        val scope = rememberCoroutineScope()
+        val closeAt = with(LocalDensity.current) { 110.dp.toPx() }
         Column(
             Modifier
+                .offset { IntOffset(0, drag.value.roundToInt()) }
+                .draggable(
+                    rememberDraggableState { delta -> scope.launch { drag.snapTo((drag.value + delta).coerceAtLeast(0f)) } },
+                    Orientation.Vertical,
+                    onDragStopped = { velocity -> if (drag.value > closeAt || velocity > 1800f) onDismiss() else drag.animateTo(0f) },
+                )
                 .fillMaxWidth()
                 .glass(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                 .clickable(remember { MutableInteractionSource() }, indication = null) {}
@@ -282,7 +321,7 @@ fun BoxScope.SheetOverlay(host: SheetHost) {
                 .padding(top = 10.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(Modifier.align(Alignment.CenterHorizontally).width(36.dp).height(4.dp).clip(CircleShape).background(Color(0xFF555555)))
+            Box(Modifier.align(Alignment.CenterHorizontally).width(36.dp).height(4.dp).clip(CircleShape).background(C.Handle))
             last?.content?.invoke(this)
         }
     }
