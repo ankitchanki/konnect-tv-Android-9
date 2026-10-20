@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.konnecttv.TvViewModel
+import io.konnecttv.adbPort
 import io.konnecttv.adb.FoundTv
 
 /** What a pair or manual sheet is about. */
@@ -127,8 +128,12 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
             item {
                 Text(
                     "First time? On the TV: Settings › Device Preferences › About › tap Build 7 times. " +
-                        "Then in Developer options turn on USB debugging (and Wireless debugging if you see it). " +
-                        "For pairing, open Wireless debugging › Pair device with pairing code.",
+                        "In Developer options, turn on USB debugging.\n\n" +
+                        "Android TV 9–10: turn on Network debugging if available, then connect to the TV IP on port 5555 " +
+                        "and approve Allow debugging on the TV. Some TVs need a one-time USB connection to a computer " +
+                        "and the command adb tcpip 5555.\n\n" +
+                        "Android TV 11+: if Wireless debugging is available, open Pair device with pairing code. " +
+                        "Use the pairing port for Pair, and the separate connection port for Connect.",
                     style = Small,
                     modifier = Modifier.padding(vertical = 8.dp),
                 )
@@ -144,8 +149,8 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
             Text("On the TV: Developer options › Wireless debugging › Pair device with pairing code.", style = Small)
             if (target.pairPort == null) Field(port, { port = it.filter(Char::isDigit) }, "Pairing port (shown on TV)", KeyboardType.Number)
             CodeBoxes(code) { code = it.filter(Char::isDigit).take(6) }
-            PrimaryButton("Pair", enabled = code.length == 6 && port.isNotEmpty()) {
-                vm.pair(target.host, port.toInt(), code, target.name)
+            PrimaryButton("Pair", enabled = code.length == 6 && adbPort(port) != null) {
+                vm.pair(target.host, adbPort(port) ?: return@PrimaryButton, code, target.name)
                 pairing = null
             }
         }
@@ -157,8 +162,8 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
             Text("Find the IP on the TV: Settings › Network › your Wi-Fi.", style = Small)
             Field(host, { host = it.trim() }, "TV IP, e.g. 192.168.1.24", KeyboardType.Uri)
             Field(port, { port = it.filter(Char::isDigit) }, "Port (5555, or the one under Wireless debugging)", KeyboardType.Number)
-            PrimaryButton("Connect", enabled = host.isNotEmpty() && port.isNotEmpty()) {
-                vm.connect(host, port.toInt())
+            PrimaryButton("Connect", enabled = host.isNotEmpty() && adbPort(port) != null) {
+                vm.connect(host, adbPort(port) ?: return@PrimaryButton)
                 manual = false
             }
             SecondaryButton("Pair with code instead") {

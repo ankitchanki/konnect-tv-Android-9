@@ -30,6 +30,7 @@
         android:allowBackup="false"
         android:enableOnBackInvokedCallback="false"
         android:icon="@drawable/ic_glow"
+        android:banner="@drawable/tv_banner"
         android:label="Glowlauncher"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
         <activity
@@ -46,6 +47,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 

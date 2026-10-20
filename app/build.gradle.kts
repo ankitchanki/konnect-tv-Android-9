@@ -18,13 +18,14 @@ android {
 
     defaultConfig {
         applicationId = "io.konnecttv"
-        // Android 12+: RenderEffect gives real backdrop blur everywhere.
-        minSdk = 31
+        // Android 9+: older phones use solid floating surfaces instead of RenderEffect blur.
+        minSdk = 28
         targetSdk = 36
         versionCode = 2
         versionName = "1.0.1"
-        // Phones only: x86 builds would double Conscrypt's native size for emulators and Chromebooks.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Include x86_64 so the same build can be verified on Android 9 emulators.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     buildFeatures { compose = true }
@@ -66,7 +67,7 @@ android {
         }
     }
 
-    lint { abortOnError = false }
+    lint { abortOnError = true }
 }
 
 kotlin {
@@ -110,4 +111,8 @@ dependencies {
     implementation(libs.bcpkix)
 
     testImplementation(libs.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

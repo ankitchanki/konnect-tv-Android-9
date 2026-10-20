@@ -1,5 +1,6 @@
 package io.konnecttv.ui
 
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -116,12 +117,16 @@ private val GlassStyle get() = HazeStyle(
     noiseFactor = 0.04f,
 )
 
-/** Frosted glass: blur of whatever scrolls underneath, a hairline edge. */
+/** Android 12+ gets backdrop blur; Android 9–11 gets an opaque, readable surface. */
 @Composable
-fun Modifier.glass(shape: RoundedCornerShape): Modifier = this
-    .clip(shape)
-    .hazeEffect(LocalHaze.current, GlassStyle)
-    .border(1.dp, C.Hairline, shape)
+fun Modifier.glass(shape: RoundedCornerShape): Modifier {
+    val surface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        Modifier.hazeEffect(LocalHaze.current, GlassStyle)
+    } else {
+        Modifier.background(C.Card)
+    }
+    return this.clip(shape).then(surface).border(1.dp, C.Hairline, shape)
+}
 
 /**
  * Wraps the press highlight so every clickable also ticks the phone's haptics on press.

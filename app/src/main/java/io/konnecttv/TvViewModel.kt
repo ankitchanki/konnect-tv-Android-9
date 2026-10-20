@@ -117,6 +117,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun connect(host: String, port: Int, name: String? = null, quiet: Boolean = false) = viewModelScope.launch {
+        if (host.isBlank() || port !in 1..65535) return@launch say("Enter the TV IP and a port from 1 to 65535.")
         _conn.value = Conn.Busy(if (quiet) "Reconnecting…" else "Connecting… If the TV asks \"Allow debugging?\", tick Always allow and press Allow.")
         // adbd waits for the Allow tap with no timeout of its own.
         val watchdog = launch { kotlinx.coroutines.delay(if (quiet) 8_000 else 45_000); cancelConnect() }
@@ -156,6 +157,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Wireless debugging: pair with the 6-digit code, then connect on the TLS port. */
     fun pair(host: String, pairPort: Int, code: String, name: String?) = viewModelScope.launch {
+        if (host.isBlank() || pairPort !in 1..65535 || code.length != 6 || !code.all(Char::isDigit)) {
+            return@launch say("Enter the TV IP, pairing port (1–65535), and six-digit code.")
+        }
         _conn.value = Conn.Busy("Pairing…")
         val ok = withContext(Dispatchers.IO) {
             runCatching { Adb(getApplication()).use { it.pair(host, pairPort, code) } }.getOrDefault(false)
@@ -341,8 +345,10 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    private fun isHomeActive(a: Adb) =
-        a.sh("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1") == LAUNCHER_ACTIVITY
+    private fun isHomeActive(a: Adb) = matchesHomeComponent(
+        a.sh("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1"),
+        LAUNCHER_PKG, ".HomeActivity",
+    )
 
     /** Changes a setting and keeps its original value once, so undo restores what the TV had. */
     private suspend fun putSetting(a: Adb, namespace: String, key: String, value: String, label: String) {
@@ -545,7 +551,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             history.value.filter { it.kind == "home" }.forEach { undoOne(a, it) }
             // Become home first, then open once with the picked apps: launching it before the switch
             // meant starting it twice on a TV that's short of memory.
-            a.sh("cmd role add-role-holder --user 0 android.app.role.HOME $LAUNCHER_PKG; cmd package set-home-activity $LAUNCHER_ACTIVITY")
+            val sdk = a.sh("getprop ro.build.version.sdk").toIntOrNull() ?: 28
+            a.sh(homeSelectionCommand(sdk, LAUNCHER_PKG, LAUNCHER_ACTIVITY))
             if (!isHomeActive(a)) {
                 // The TV ranks its own home above any installed app (Google TV does). Leave it on and
                 // let Glowlauncher's Home button service answer Home instead.

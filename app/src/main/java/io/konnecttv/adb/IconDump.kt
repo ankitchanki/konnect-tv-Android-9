@@ -1,8 +1,6 @@
 package io.konnecttv.adb
 
-import android.app.Application
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Configuration
@@ -22,7 +20,7 @@ import java.util.Locale
  */
 object IconDump {
     private const val SIZE = 144
-    private const val DPI = 480
+    private const val DPI = DisplayMetrics.DENSITY_XXHIGH
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -55,14 +53,9 @@ object IconDump {
     private fun systemContext(): Context {
         Looper.prepareMainLooper()
         val type = Class.forName("android.app.ActivityThread")
-        val thread = type.getDeclaredConstructor().apply { isAccessible = true }.newInstance()
-        type.getDeclaredField("sCurrentActivityThread").apply { isAccessible = true }.set(null, thread)
-        type.getDeclaredField("mSystemThread").apply { isAccessible = true }.setBoolean(thread, true)
-        val context = type.getDeclaredMethod("getSystemContext").invoke(thread) as Context
-        // Adaptive icons read the launcher mask from the current Application's resources.
-        val app = object : Application() { override fun getResources(): Resources = Resources.getSystem() }
-        ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", Context::class.java).apply { isAccessible = true }.invoke(app, context)
-        type.getDeclaredField("mInitialApplication").apply { isAccessible = true }.set(thread, app)
-        return context
+        // systemMain initializes both the system Context and Application. Avoid writing
+        // mSystemThread directly: Android 16 blocks reflective access to that field.
+        val thread = type.getDeclaredMethod("systemMain").invoke(null)
+        return type.getDeclaredMethod("getSystemContext").invoke(thread) as Context
     }
 }

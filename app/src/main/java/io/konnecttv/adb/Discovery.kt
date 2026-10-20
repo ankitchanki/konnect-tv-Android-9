@@ -21,7 +21,8 @@ data class FoundTv(
     val tlsPort: Int? = null,
 )
 
-private const val REMOTE = "_androidtvremote2._tcp." // every Android/Google TV, debugging or not
+// Older Android 9 TVs may still advertise the first-generation remote service.
+private val REMOTE_SERVICES = listOf("_androidtvremote2._tcp.", "_androidtvremote._tcp.")
 private const val PAIR = "_adb-tls-pairing._tcp."
 private const val CONNECT = "_adb-tls-connect._tcp."
 
@@ -47,17 +48,17 @@ fun discoverTvs(context: Context): Flow<List<FoundTv>> = callbackFlow {
         }
         val host = address?.hostAddress ?: return@synchronized
         // Only the TV remote service carries a friendly name; adb services are named "adb-<serial>-xyz".
-        val old = tvs[host] ?: FoundTv(host, if (type == REMOTE) info.serviceName else "Android device")
-        tvs[host] = when (type) {
-            REMOTE -> old.copy(name = info.serviceName)
-            PAIR -> old.copy(pairPort = info.port)
+        val old = tvs[host] ?: FoundTv(host, if (type in REMOTE_SERVICES) info.serviceName else "Android device")
+        tvs[host] = when {
+            type in REMOTE_SERVICES -> old.copy(name = info.serviceName)
+            type == PAIR -> old.copy(pairPort = info.port)
             else -> old.copy(tlsPort = info.port)
         }
         trySend(tvs.values.toList())
         Unit
     }
 
-    // Android 12-13 can only resolve one service at a time, so those go through a queue.
+    // Android 9–13 can only resolve one service at a time, so those go through a queue.
     val queue = ArrayDeque<Pair<String, NsdServiceInfo>>()
     var resolving = false
     fun resolveNext() {
@@ -78,7 +79,7 @@ fun discoverTvs(context: Context): Flow<List<FoundTv>> = callbackFlow {
     }
 
     val callbacks = mutableListOf<NsdManager.ServiceInfoCallback>()
-    val listeners = listOf(REMOTE, PAIR, CONNECT).map { type ->
+    val listeners = (REMOTE_SERVICES + listOf(PAIR, CONNECT)).map { type ->
         object : NsdManager.DiscoveryListener {
             override fun onServiceFound(info: NsdServiceInfo) {
                 if (isClosedForSend) return

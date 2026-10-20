@@ -17,8 +17,8 @@ android {
 
     defaultConfig {
         applicationId = "io.konnecttv.glowlauncher"
-        // Android TV 5.0+: some 2015 TVs are still in use.
-        minSdk = 21
+        // Android TV 9+, matching this adaptation's supported TV versions.
+        minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -52,7 +52,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    lint { abortOnError = false }
+    lint { abortOnError = true }
 }
 
 kotlin {

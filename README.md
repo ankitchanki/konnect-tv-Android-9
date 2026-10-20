@@ -43,7 +43,11 @@ Your TV will differ. The older and more cluttered it is, the bigger the gain. Ra
 
 ## Install
 
-Download `KonnectTV.apk` from the [latest release](https://github.com/yashoncode/konnect-tv/releases/latest) and open it on your phone. The phone must run Android 12 or newer.
+This Android 9+ adaptation keeps KonnectTV as a **phone companion** for Android TV and Google TV running Android 9 or newer. The phone also needs Android 9 (API 28) or newer. Android 9–11 phones use solid floating surfaces; Android 12+ keeps backdrop blur.
+
+Install the companion APK on your **phone**. Glowlauncher is bundled inside it and is installed on the TV from **Boost**. The separate Glowlauncher APK is only needed for manual launcher installation; it is not the phone companion.
+
+The original project's [release page](https://github.com/yashoncode/konnect-tv/releases/latest) contains upstream builds, not this adaptation. Build this source or download the `KonnectTV-Android9-test-build` artifact from this fork's **Actions** tab. Actions builds are signed with a debug key for testing. If an upstream build with the same package name is already installed, Android may require uninstalling it first because its signing key differs. Uninstalling removes that app's saved connections and history.
 
 ## Set up the TV (once)
 
@@ -60,6 +64,14 @@ Put the phone and the TV on the same Wi-Fi and open KonnectTV. It finds Android 
 - **TV not listed?** Tap **Enter IP address manually**. The IP is under the TV's network settings. The port is 5555, or the one shown under Wireless debugging.
 
 After the first time, KonnectTV remembers the TV and reconnects in one tap.
+
+### Android TV 9–10
+
+These versions do **not** have Android 11's wireless pairing-code flow. Enable **USB debugging** and, if the TV offers it, **Network debugging** or **ADB over network**, then connect to the TV's IP on port **5555**. Approve the debugging prompt on the TV. USB debugging by itself does not enable network ADB on every model.
+
+If your TV has no network debugging switch but supports USB ADB, connect it to a computer once, authorize that computer, and run `adb tcpip 5555`. Disconnect USB and enter the TV IP in KonnectTV. Some manufacturers disable network ADB entirely; KonnectTV cannot bypass that restriction. Network ADB may need enabling again after a TV reboot. Turn it off when you no longer need it, and use it only on a trusted local network.
+
+Android 9 launcher setup uses `cmd package set-home-activity`; Android 10+ also tries the Home role. App management, remote commands and undo remain in the companion.
 
 ## Safe by design
 
@@ -81,13 +93,23 @@ Glowlauncher is KonnectTV's own home screen for the TV: a big clock and the apps
 
 ## Build it yourself
 
-You need JDK 17+ and the Android SDK (platform 37).
+You need a full **JDK 21** (including `javac`) and the Android SDK (platform **37.0**, build-tools **36.0.0**). Use recent Android command-line tools; the platform's package name is `platforms;android-37.0`.
 
 ```sh
-./gradlew :app:testDebugUnitTest :app:assembleRelease
+./gradlew :app:testDebugUnitTest :app:lintDebug :glowlauncher:lintRelease :app:assembleDebug
 ```
 
-The app uses Kotlin and Jetpack Compose. Glowlauncher (`glowlauncher/`) uses plain Android views so it stays small and runs on Android TV 5.0 and newer. ADB runs on [libadb-android](https://github.com/MuntashirAkon/libadb-android), which handles pairing and TLS. The frosted glass uses [Haze](https://github.com/chrisbanes/haze).
+The installable test companion is at `app/build/outputs/apk/debug/app-debug.apk`. The bundled TV launcher is at `glowlauncher/build/outputs/apk/release/glowlauncher-release.apk`. For an optimized production build, configure your own persistent signing key below, then run `./gradlew :app:assembleRelease`.
+
+To run the connection-screen smoke test on an Android 9 emulator or device:
+
+```sh
+./gradlew :app:connectedDebugAndroidTest
+```
+
+The test opens the companion and manual connection sheet, exercises the Android 9 surface fallback and validates connection ports. It does not prove compatibility with every TV manufacturer's ADB implementation. The workflow in `.github/workflows/android.yml` builds both APKs and runs this smoke test on API 28.
+
+The app uses Kotlin and Jetpack Compose. Glowlauncher (`glowlauncher/`) uses plain Android views so it stays small and runs on Android TV 9 and newer in this adaptation. It also has a TV launcher entry and banner for launching it directly from the TV's apps screen. ADB runs on [libadb-android](https://github.com/MuntashirAkon/libadb-android), which handles pairing and TLS. The frosted glass uses [Haze](https://github.com/chrisbanes/haze).
 
 To sign a release build, create `keystore.properties` in the project root. Never commit it.
 
