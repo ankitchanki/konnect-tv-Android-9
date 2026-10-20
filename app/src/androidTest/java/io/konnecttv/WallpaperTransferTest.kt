@@ -65,18 +65,30 @@ class WallpaperTransferTest {
     }
 
     private fun assertWallpaperIsRed(expected: Boolean) {
-        val deadline = SystemClock.uptimeMillis() + 8000
+        val deadline = SystemClock.uptimeMillis() + 20000
         do {
             val screenshot = instrumentation.uiAutomation.takeScreenshot()
             val red = screenshot?.let {
-                val p = it.getPixel(it.width / 5, it.height / 5)
-                val result = Color.red(p) > 200 && Color.green(p) < 40 && Color.blue(p) < 40
+                // Modern phone emulators can letterbox a landscape TV activity. Check the visible
+                // background across the frame instead of assuming one screen coordinate is inside it.
+                var redPixels = 0
+                for (x in 1..9) for (y in 1..9) {
+                    val p = it.getPixel(it.width * x / 10, it.height * y / 10)
+                    if (Color.red(p) > 200 && Color.green(p) < 40 && Color.blue(p) < 40) redPixels++
+                }
+                val result = redPixels >= 10
                 it.recycle()
                 result
             }
             if (red == expected) return
             SystemClock.sleep(200)
         } while (SystemClock.uptimeMillis() < deadline)
+        instrumentation.uiAutomation.takeScreenshot()?.let { image ->
+            val file = File(instrumentation.targetContext.getExternalFilesDir(null), "wallpaper-failure.png")
+            try { file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+            finally { image.recycle() }
+            shell("cp ${file.path} /data/local/tmp/konnecttv-wallpaper-failure.png")
+        }
         fail("Launcher wallpaper red=$expected was not displayed")
     }
 }

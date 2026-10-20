@@ -65,11 +65,7 @@ jobs:
           target: ${{ matrix.target }}
           profile: Nexus 6
           disable-animations: true
-          script: |
-            ./gradlew :glowlauncher:installRelease :app:connectedDebugAndroidTest
-            mkdir -p ui-previews
-            adb pull /data/local/tmp/konnecttv-wallpaper-editor.png ui-previews/wallpaper-editor.png
-            adb pull /data/local/tmp/konnecttv-saved-tvs.png ui-previews/saved-tvs.png
+          script: bash tools/run-emulator-tests.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
