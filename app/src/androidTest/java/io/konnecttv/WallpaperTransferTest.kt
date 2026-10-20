@@ -21,26 +21,31 @@ class WallpaperTransferTest {
 
     private fun shell(command: String): String =
         ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command))
-            .bufferedReader().use { it.readText() }
+            .bufferedReader().use { it.readText() }.also { android.util.Log.i("WallpaperTest", "$command: $it") }
 
     @Test fun wallpaperTransferIsVerifiedAndOtherAppsCannotWriteIt() {
         val context = instrumentation.targetContext
         val bitmap = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
         val image = File(context.cacheDir, "wallpaper-smoke.jpg")
+        val script = File(context.getExternalFilesDir(null), "wallpaper-upload.sh")
         val draft = WallpaperDraft(bitmap, "test", TvScreen(1280, 720), true)
         try {
             exportWallpaper(draft, WallpaperCrop(dim = 0f), image)
             val hash = MessageDigest.getInstance("SHA-256").digest(image.readBytes()).joinToString("") { "%02x".format(it) }
-            assertTrue(shell("content call --uri $authority --method status").contains("status=ready"))
-            shell("sh -c 'run-as io.konnecttv cat cache/wallpaper-smoke.jpg | content write --uri $authority/wallpaper'")
-            assertTrue(shell("content call --uri $authority --method commit --arg $hash").contains("status=ok"))
+            val status = shell("content call --uri $authority --method status")
+            assertTrue(status, status.contains("status=ready"))
+            // UiAutomation tokenizes arguments without shell quote handling. Use a real script for the pipe.
+            script.writeText("run-as io.konnecttv cat cache/wallpaper-smoke.jpg | head -c ${image.length()} | content write --uri $authority/wallpaper\n")
+            shell("sh ${script.path}")
+            val committed = shell("content call --uri $authority --method commit --arg $hash")
+            assertTrue(committed, committed.contains("status=ok"))
             shell("am start -W -n io.konnecttv.glowlauncher/.HomeActivity")
             assertWallpaperIsRed(true)
             // A force-stop and new launch must retain the background.
             shell("am force-stop io.konnecttv.glowlauncher")
             shell("am start -W -n io.konnecttv.glowlauncher/.HomeActivity")
             assertWallpaperIsRed(true)
-            shell("sh -c 'run-as io.konnecttv cat cache/wallpaper-smoke.jpg | content write --uri $authority/wallpaper'")
+            shell("sh ${script.path}")
             assertFalse(shell("content call --uri $authority --method commit --arg ${"0".repeat(64)}").contains("status=ok"))
             assertWallpaperIsRed(true)
             try {
@@ -55,6 +60,7 @@ class WallpaperTransferTest {
             shell("am force-stop io.konnecttv.glowlauncher")
             bitmap.recycle()
             image.delete()
+            script.delete()
         }
     }
 

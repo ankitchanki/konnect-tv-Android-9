@@ -7,6 +7,10 @@
     <!-- mDNS discovery of TVs on the Wi-Fi -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
+    <queries>
+        <provider android:authorities="io.konnecttv.glowlauncher.wallpaper" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"

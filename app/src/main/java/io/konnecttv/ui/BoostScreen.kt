@@ -105,10 +105,12 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
             }
 
             Card {
-                Text("TV wallpaper", style = Body)
-                Text(if (launcherOn) "Choose a photo from your phone, preview its crop and send it to ${tv.name}." else "Turn on Glowlauncher above to personalize its background.", style = Small)
-                PrimaryButton(if (busy) "Working…" else "Choose wallpaper", enabled = launcherOn && !busy) { pickWallpaper.launch("image/*") }
-                if (launcherOn) SecondaryButton("Restore glow background") { if (!busy) clearWallpaper = true }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("TV wallpaper", style = Body)
+                    Text(if (launcherOn) "Choose a photo from your phone, preview its crop and send it to ${tv.name}." else "Turn on Glowlauncher above to personalize its background.", style = Small)
+                    PrimaryButton(if (busy) "Working…" else "Choose wallpaper", enabled = launcherOn && !busy) { pickWallpaper.launch("image/*") }
+                    if (launcherOn) SecondaryButton("Restore glow background") { if (!busy) clearWallpaper = true }
+                }
             }
 
             val t = tweaks

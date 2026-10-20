@@ -53,7 +53,14 @@ class Android9SmokeTest {
     }
 
     @Test fun wallpaperEditorOffersFitAndCropOnAndroid9() {
-        val bitmap = Bitmap.createBitmap(100, 200, Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(600, 900, Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bitmap).apply {
+            val paint = android.graphics.Paint().apply {
+                shader = android.graphics.LinearGradient(0f, 0f, 0f, 900f,
+                    intArrayOf(0xFF426E9B.toInt(), 0xFFE7AC87.toInt(), 0xFF305B54.toInt()), null, android.graphics.Shader.TileMode.CLAMP)
+            }
+            drawRect(0f, 0f, 600f, 900f, paint)
+        }
         var cancelled = false
         compose.activity.runOnUiThread {
             compose.activity.setContent {

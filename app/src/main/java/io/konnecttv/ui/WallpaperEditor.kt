@@ -26,6 +26,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -44,9 +46,14 @@ import io.konnecttv.wallpaperPlacement
 import java.util.Locale
 import kotlin.math.abs
 
+private val CropSaver = listSaver<WallpaperCrop, Any>(
+    save = { listOf(it.fit, it.zoom, it.x, it.y, it.dim) },
+    restore = { WallpaperCrop(it[0] as Boolean, it[1] as Float, it[2] as Float, it[3] as Float, it[4] as Float) },
+)
+
 @Composable
 fun WallpaperEditor(draft: WallpaperDraft, busy: Boolean, onDismiss: () -> Unit, onApply: (WallpaperCrop) -> Unit, error: String? = null) {
-    var crop by remember(draft) { mutableStateOf(WallpaperCrop()) }
+    var crop by rememberSaveable(draft, stateSaver = CropSaver) { mutableStateOf(WallpaperCrop()) }
     val paint = remember { Paint(Paint.FILTER_BITMAP_FLAG) }
     val sliderColors = SliderDefaults.colors(thumbColor = C.Accent, activeTrackColor = C.Accent, inactiveTrackColor = C.Border)
     Dialog(onDismissRequest = { if (!busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
