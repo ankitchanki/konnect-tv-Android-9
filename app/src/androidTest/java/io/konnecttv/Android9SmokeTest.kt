@@ -104,6 +104,10 @@ class Android9SmokeTest {
         instrumentation.uiAutomation.takeScreenshot()?.let { image ->
             try { file.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
             finally { image.recycle() }
+            // AGP uninstalls test apps after the suite; keep previews outside app storage before that cleanup.
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                instrumentation.uiAutomation.executeShellCommand("cp ${file.path} /data/local/tmp/konnecttv-$name")
+            ).use { it.readBytes() }
         }
     }
 }

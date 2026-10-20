@@ -68,8 +68,8 @@ jobs:
           script: |
             ./gradlew :glowlauncher:installRelease :app:connectedDebugAndroidTest
             mkdir -p ui-previews
-            adb pull /sdcard/Android/data/io.konnecttv/files/wallpaper-editor.png ui-previews/
-            adb pull /sdcard/Android/data/io.konnecttv/files/saved-tvs.png ui-previews/
+            adb pull /data/local/tmp/konnecttv-wallpaper-editor.png ui-previews/wallpaper-editor.png
+            adb pull /data/local/tmp/konnecttv-saved-tvs.png ui-previews/saved-tvs.png
       - uses: actions/upload-artifact@v4
         if: always()
         with:
