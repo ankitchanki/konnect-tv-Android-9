@@ -57,7 +57,7 @@ class Android9SmokeTest {
         var cancelled = false
         compose.activity.runOnUiThread {
             compose.activity.setContent {
-                WallpaperEditor(WallpaperDraft(bitmap, "test", TvScreen(), true), false, { cancelled = true }) {}
+                WallpaperEditor(WallpaperDraft(bitmap, "test", TvScreen(), true), false, { cancelled = true }, onApply = {})
             }
         }
         compose.onNodeWithText("TV wallpaper").assertIsDisplayed()
