@@ -72,6 +72,8 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.foundation.IndicationNodeFactory
@@ -276,12 +278,18 @@ val LocalSheetHost = staticCompositionLocalOf { SheetHost() }
 fun GlassSheet(visible: Boolean, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     if (!visible) return
     val host = LocalSheetHost.current
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val latestDismiss by rememberUpdatedState(onDismiss)
     val latestContent by rememberUpdatedState(content)
     DisposableEffect(host) {
         val sheet = Sheet({ latestDismiss() }) { latestContent(this) }
         host.sheet = sheet
-        onDispose { if (host.sheet === sheet) host.sheet = null }
+        onDispose {
+            if (host.sheet === sheet) host.sheet = null
+            focus.clearFocus()
+            keyboard?.hide()
+        }
     }
 }
 

@@ -89,6 +89,7 @@ class Android9SmokeTest {
             compose.onNodeWithText("Save TV").performScrollTo().performClick()
             compose.onNodeWithText("Living room").assertIsDisplayed()
             compose.onNodeWithText("Friend's TV").assertIsDisplayed()
+            compose.runOnIdle { vm.message.value = null }
             saveScreenshot("saved-tvs.png")
             compose.onNodeWithText("Enter IP address manually").performScrollTo().performClick()
             compose.onNodeWithText("Use last IP · Living room").performClick()
