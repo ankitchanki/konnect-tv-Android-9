@@ -19,6 +19,7 @@ import io.konnecttv.data.SavedTv
 import io.konnecttv.data.Store
 import io.konnecttv.data.TvApp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +32,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -84,6 +86,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private var adb: Adb? = null
     // libadb streams are thread-safe, but connect/disconnect and history writes must not interleave.
     private val lock = Mutex()
+    private val operationLock = Mutex()
 
     private val _conn = MutableStateFlow<Conn>(Conn.Off)
     val conn = _conn.asStateFlow()
@@ -111,28 +114,24 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The connection being opened, so Cancel or the watchdog can close it and unblock connect(). */
     @Volatile private var pending: Adb? = null
+    @Volatile private var connectionCancelled = false
 
     fun cancelConnect() {
+        connectionCancelled = true
         pending?.runCatching { close() }
     }
 
-    fun connect(host: String, port: Int, name: String? = null, quiet: Boolean = false) = viewModelScope.launch {
+    fun connect(host: String, port: Int, name: String? = null, quiet: Boolean = false, tag: String? = null) = viewModelScope.launch {
         if (host.isBlank() || port !in 1..65535) return@launch say("Enter the TV IP and a port from 1 to 65535.")
+        if (conn.value is Conn.Busy) return@launch say("A connection is already opening. Cancel it before trying another TV.")
+        connectionCancelled = false
         _conn.value = Conn.Busy(if (quiet) "Reconnecting…" else "Connecting… If the TV asks \"Allow debugging?\", tick Always allow and press Allow.")
         // adbd waits for the Allow tap with no timeout of its own.
         val watchdog = launch { kotlinx.coroutines.delay(if (quiet) 8_000 else 45_000); cancelConnect() }
         val result = withContext(Dispatchers.IO) {
-            lock.withLock {
-                runCatching {
-                    adb?.runCatching { close() }
-                    val a = Adb(getApplication()).also { pending = it }
-                    if (!a.connect(host, port)) error("The TV refused the connection.")
-                    android.util.Log.i("KonnectTV", "adb connected $host:$port")
-                    adb = a
-                    val id = a.sh("getprop ro.serialno").ifBlank { a.sh("settings get secure android_id") }.ifBlank { host }
-                    val model = name ?: a.sh("getprop ro.product.model").ifBlank { host }
-                    val old = store.tvs().firstOrNull { it.id == id }
-                    SavedTv(id, old?.name ?: model, host, port, old?.ramBefore ?: readMemory(a).freeKb).also(store::saveTv)
+            operationLock.withLock {
+                lock.withLock {
+                    runCatching { openTv(host, port, name, tag) }
                 }
             }
         }
@@ -155,15 +154,47 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun openTv(host: String, port: Int, name: String?, tag: String?): SavedTv {
+        check(!connectionCancelled) { "Connection cancelled." }
+        adb?.runCatching { close() }
+        adb = null
+        val a = Adb(getApplication()).also { pending = it }
+        try {
+            check(a.connect(host, port)) { "The TV refused the connection." }
+            fun deviceId(value: String) = value.trim().takeUnless {
+                it.isBlank() || it.equals("null", true) || it.equals("unknown", true)
+            }
+            val id = deviceId(a.sh("getprop ro.serialno")) ?: deviceId(a.sh("settings get secure android_id")) ?: host
+            val model = name?.trim()?.takeIf { it.isNotEmpty() } ?: a.sh("getprop ro.product.model").ifBlank { host }
+            val old = store.tvs().firstOrNull { it.id == id }
+            // A discovery label must not overwrite a custom name when DHCP changes a TV's IP.
+            val savedName = if (tag != null && !name.isNullOrBlank()) name.trim() else old?.name ?: model
+            val savedTv = SavedTv(id, savedName.take(80), host, port, old?.ramBefore ?: readMemory(a).freeKb,
+                (tag?.trim() ?: old?.tag.orEmpty()).take(80))
+            check(!connectionCancelled) { "Connection cancelled." }
+            store.saveTv(savedTv)
+            adb = a
+            return savedTv
+        } catch (e: Exception) {
+            a.runCatching { close() }
+            throw e
+        }
+    }
+
     /** Wireless debugging: pair with the 6-digit code, then connect on the TLS port. */
-    fun pair(host: String, pairPort: Int, code: String, name: String?) = viewModelScope.launch {
+    fun pair(host: String, pairPort: Int, code: String, name: String?, tag: String? = null) = viewModelScope.launch {
         if (host.isBlank() || pairPort !in 1..65535 || code.length != 6 || !code.all(Char::isDigit)) {
             return@launch say("Enter the TV IP, pairing port (1–65535), and six-digit code.")
         }
+        if (conn.value is Conn.Busy) return@launch say("Cancel the current connection first.")
+        connectionCancelled = false
         _conn.value = Conn.Busy("Pairing…")
+        val watchdog = launch { delay(45_000); cancelConnect() }
         val ok = withContext(Dispatchers.IO) {
-            runCatching { Adb(getApplication()).use { it.pair(host, pairPort, code) } }.getOrDefault(false)
+            runCatching { Adb(getApplication()).use { pending = it; it.pair(host, pairPort, code) && !connectionCancelled } }.getOrDefault(false)
         }
+        watchdog.cancel()
+        pending = null
         if (!ok) {
             _conn.value = Conn.Off
             say("Pairing failed. Check the code on the TV and try again.")
@@ -171,16 +202,23 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         }
         // The TLS connect port is announced over mDNS; give it a few seconds to show up.
         repeat(20) {
-            found.value.firstOrNull { it.host == host }?.tlsPort?.let { return@launch connect(host, it, name).let {} }
+            if (connectionCancelled) { _conn.value = Conn.Off; return@launch }
+            found.value.firstOrNull { it.host == host }?.tlsPort?.let {
+                _conn.value = Conn.Off
+                return@launch connect(host, it, name, tag = tag).let {}
+            }
             kotlinx.coroutines.delay(500)
         }
         _conn.value = Conn.Off
         say("Paired. Now tap the TV again, or enter the IP and port shown under Wireless debugging.")
     }
 
-    fun disconnect() = viewModelScope.launch(Dispatchers.IO) {
-        lock.withLock { adb?.runCatching { close() }; adb = null }
-        _conn.value = Conn.Off
+    fun disconnect() = viewModelScope.launch {
+        operationLock.withLock {
+            withContext(Dispatchers.IO) { lock.withLock { adb?.runCatching { close() }; adb = null } }
+            wallpaperDraft.value = null
+            _conn.value = Conn.Off
+        }
     }
 
     fun forget(id: String) {
@@ -189,23 +227,41 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         if (tv?.id == id) disconnect()
     }
 
+    fun editTv(id: String, name: String, tag: String, host: String, port: Int) {
+        if (name.isBlank() || host.isBlank() || port !in 1..65535) return say("Enter a TV name, IP and valid port.")
+        val current = store.tvs().firstOrNull { it.id == id } ?: return
+        val edited = current.copy(name = name.trim().take(80), tag = tag.trim().take(80), host = host.trim(), port = port)
+        store.updateTv(edited)
+        saved.value = store.tvs()
+        // Editing a saved address applies to the next connection, not the active socket.
+        tv?.takeIf { it.id == id }?.let { _conn.value = Conn.On(it.copy(name = edited.name, tag = edited.tag)) }
+        say("TV details saved on this phone.")
+    }
+
     // ---------- helpers ----------
 
     /** Runs TV work off the main thread; any failure becomes a message, a dropped link goes back to Connect. */
-    private fun work(block: suspend (Adb) -> Unit) = viewModelScope.launch {
+    private fun work(onFailure: ((String) -> Unit)? = null, block: suspend (Adb) -> Unit) = viewModelScope.launch {
         val a = adb ?: return@launch say("Not connected.")
-        busy.value = true
-        try {
-            withContext(Dispatchers.IO) { block(a) }
-        } catch (e: Exception) {
-            if (!a.isConnected) {
-                _conn.value = Conn.Off
-                say("Lost connection to the TV.")
-            } else {
-                say(e.message ?: "Something went wrong.")
+        val target = tv?.id ?: return@launch say("Not connected.")
+        operationLock.withLock {
+            if (a !== adb || tv?.id != target) return@withLock say("The TV changed. Try again on the selected TV.")
+            busy.value = true
+            try {
+                withContext(Dispatchers.IO) { block(a) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (!a.isConnected) {
+                    _conn.value = Conn.Off
+                    say("Lost connection to the TV.")
+                } else {
+                    val text = e.message ?: "Something went wrong."
+                    onFailure?.invoke(text)
+                    say(text)
+                }
+            } finally {
+                busy.value = false
             }
-        } finally {
-            busy.value = false
         }
     }
 
@@ -502,6 +558,55 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         sendHomeApps(a, homeApps, accent)
         a.keyevent(io.konnecttv.adb.Key.HOME)
         say("Home screen updated.")
+    }
+
+    // ---------- launcher wallpaper ----------
+
+    val wallpaperDraft = MutableStateFlow<WallpaperDraft?>(null)
+    val wallpaperError = MutableStateFlow<String?>(null)
+
+    fun prepareWallpaper(uri: Uri) = work { a ->
+        wallpaperError.value = null
+        val id = tv?.id ?: return@work
+        val screen = parseTvScreen(a.sh("wm size"))
+        val bitmap = loadWallpaper(getApplication<Application>().contentResolver, uri)
+        wallpaperDraft.value = WallpaperDraft(bitmap, id, screen ?: TvScreen(), screen != null)
+    }
+
+    fun closeWallpaper() { wallpaperDraft.value = null; wallpaperError.value = null }
+
+    private fun ensureWallpaperLauncher(a: Adb) {
+        if ("status=ready" in a.sh("content call --uri content://$LAUNCHER_PKG.wallpaper --method status")) return
+        // Update in place with the bundled APK; keep the existing apps, glow and wallpaper.
+        val file = File(getApplication<Application>().cacheDir, "glowlauncher.apk")
+        getApplication<Application>().assets.open("glowlauncher.apk").use { input -> file.outputStream().use { input.copyTo(it) } }
+        val result = file.inputStream().use { a.install(it, file.length()) }
+        check(result.startsWith("Success")) { "Couldn't update Glowlauncher: $result" }
+        check("status=ready" in a.sh("content call --uri content://$LAUNCHER_PKG.wallpaper --method status")) { "The TV couldn't open the wallpaper inbox." }
+    }
+
+    fun applyWallpaper(crop: WallpaperCrop) = work(onFailure = { wallpaperError.value = it }) { a ->
+        wallpaperError.value = null
+        val draft = wallpaperDraft.value ?: return@work
+        check(draft.tvId == tv?.id) { "Reconnect to the TV used for this wallpaper preview." }
+        ensureWallpaperLauncher(a)
+        val file = File.createTempFile("wallpaper-", ".jpg", getApplication<Application>().cacheDir)
+        try {
+            exportWallpaper(draft, crop, file)
+            val hash = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+            a.pushWallpaper(file)
+            check("status=ok" in a.sh("content call --uri content://$LAUNCHER_PKG.wallpaper --method commit --arg $hash")) { "The TV couldn't save the wallpaper. The previous background is unchanged." }
+            a.sh("am start -n $LAUNCHER_ACTIVITY")
+            wallpaperDraft.value = null
+            say("Wallpaper applied to ${tv?.name}.")
+        } finally { file.delete() }
+    }
+
+    fun clearWallpaper() = work { a ->
+        ensureWallpaperLauncher(a)
+        check("status=ok" in a.sh("content call --uri content://$LAUNCHER_PKG.wallpaper --method clear")) { "Couldn't remove the wallpaper." }
+        a.sh("am start -n $LAUNCHER_ACTIVITY")
+        say("Original glow background restored.")
     }
 
     private val prefs = app.getSharedPreferences("konnecttv", 0)

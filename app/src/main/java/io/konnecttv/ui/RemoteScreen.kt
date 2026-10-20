@@ -41,6 +41,7 @@ import io.konnecttv.data.SavedTv
 fun RemoteScreen(vm: TvViewModel, tv: SavedTv) {
     var typing by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    var editTv by remember { mutableStateOf(false) }
     // Every key already ticks the haptics through the shared press indication.
     fun press(code: Int) = vm.key(code)
 
@@ -86,11 +87,14 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv) {
         GlassSheet(menu, onDismiss = { menu = false }) {
             Text(tv.name, style = Body.copy(fontSize = 17.sp))
             Text("${tv.host}:${tv.port}", style = Small)
+            if (tv.tag.isNotBlank()) Text(tv.tag, style = Small)
+            SecondaryButton("Edit TV name, tag or IP") { menu = false; editTv = true }
             SecondaryButton("Refresh everything") { vm.refreshAll(); menu = false }
             SecondaryButton("Switch TV") { vm.disconnect(); menu = false }
             SecondaryButton("Forget this TV", color = C.Danger) { vm.forget(tv.id); menu = false }
-            Text("KonnectTV · open source · github.com/yashoncode/konnect-tv", style = Small)
+            Text("KonnectTV · Android 9+ fork · github.com/ankitchanki/konnect-tv-Android-9", style = Small)
         }
+        if (editTv) TvDetailsSheet(vm, tv) { editTv = false }
     }
 }
 

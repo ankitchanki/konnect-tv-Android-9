@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Typeface
@@ -43,6 +44,7 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextClock
 import android.widget.TextView
+import java.io.File
 
 /**
  * Glowlauncher: a calm TV home. A big clock, the apps you picked in one glowing dock, and Inputs,
@@ -89,6 +91,8 @@ class HomeActivity : Activity() {
     private val medium: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
     private lateinit var root: FrameLayout
+    private lateinit var wallpaper: ImageView
+    private var wallpaperStamp: String? = null
     private lateinit var dock: LinearLayout
     private lateinit var dockScroll: HorizontalScrollView
     private lateinit var halo: View
@@ -117,6 +121,12 @@ class HomeActivity : Activity() {
         scale = minOf(resources.displayMetrics.widthPixels / 1920f, resources.displayMetrics.heightPixels / 1080f)
 
         root = FrameLayout(this).apply { clipChildren = false }
+        wallpaper = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        root.addView(wallpaper, FrameLayout.LayoutParams(-1, -1))
+        refreshWallpaper()
 
         halo = View(this).apply {
             alpha = 0f
@@ -214,6 +224,7 @@ class HomeActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        refreshWallpaper()
         if (saveConfig(intent)) rebuild()
         // Home pressed while already home: back to the first app, like every TV launcher.
         else if (movingKey == null) dock.getChildAt(0)?.requestFocus()
@@ -221,6 +232,7 @@ class HomeActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        refreshWallpaper()
         if (dirty) rebuild()
         startRainbow()
         refreshNetwork()
@@ -467,7 +479,7 @@ class HomeActivity : Activity() {
     }
 
     private fun inputLabel(info: TvInputInfo): String {
-        if (Build.VERSION.SDK_INT >= 24) info.loadCustomLabel(this)?.takeIf { it.isNotEmpty() }?.let { return it.toString() }
+        info.loadCustomLabel(this)?.takeIf { it.isNotEmpty() }?.let { return it.toString() }
         return info.loadLabel(this)?.takeIf { it.isNotEmpty() }?.toString() ?: "HDMI"
     }
 
@@ -586,7 +598,7 @@ class HomeActivity : Activity() {
             ?: packageManager.getApplicationIcon(info)
         val size = px(TILE)
         // Adaptive and full-bleed icons fill the tile; small legacy icons sit inside it.
-        val fill = Build.VERSION.SDK_INT >= 26 && d is android.graphics.drawable.AdaptiveIconDrawable
+        val fill = d is android.graphics.drawable.AdaptiveIconDrawable
         if (fill) fit(d, size, size) else fit(d, size, size, inset = size / 6)
     }.getOrNull()
 
@@ -676,4 +688,15 @@ class HomeActivity : Activity() {
     }
 
     private fun px(v: Int) = Math.round(v * scale)
+
+    private fun refreshWallpaper() {
+        val file = File(filesDir, "wallpaper.jpg")
+        val stamp = if (file.exists()) "${file.lastModified()}:${file.length()}" else "none"
+        if (stamp == wallpaperStamp) return
+        wallpaperStamp = stamp
+        val bitmap = if (file.exists()) runCatching {
+            BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+        }.getOrNull() else null
+        wallpaper.setImageBitmap(bitmap)
+    }
 }

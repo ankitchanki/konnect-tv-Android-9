@@ -20,8 +20,8 @@ android {
         // Android TV 9+, matching this adaptation's supported TV versions.
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     signingConfigs {

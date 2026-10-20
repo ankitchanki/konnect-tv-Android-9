@@ -89,9 +89,19 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
 
     /** Copies a file onto the TV. `exec:` is a raw pipe, so the bytes arrive untouched. */
     fun push(file: File, remote: String) {
-        openStream("exec:head -c ${file.length()} > $remote; echo $END").use { stream ->
+        openStream("exec:head -c ${file.length()} > '${remote.replace("'", "'\\''")}'; echo $END").use { stream ->
             stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
             stream.readUntil { END in it }
+        }
+    }
+
+    /** `content write` hands the bytes to the launcher's shell-only inbox, including on Android 9. */
+    fun pushWallpaper(file: File) {
+        openStream("exec:head -c ${file.length()} | content write --uri content://io.konnecttv.glowlauncher.wallpaper/wallpaper; echo RESULT:\$?; echo $END").use { stream ->
+            stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
+            // head closes the pipe at the exact file size, so content write gets EOF without closing ADB.
+            val result = stream.readUntil { END in it }
+            check("RESULT:0" in result) { "The TV could not receive the wallpaper." }
         }
     }
 

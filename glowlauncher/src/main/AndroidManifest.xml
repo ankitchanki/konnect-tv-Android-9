@@ -33,6 +33,11 @@
         android:banner="@drawable/tv_banner"
         android:label="Glowlauncher"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <!-- The provider enforces the ADB shell UID in every entry point. -->
+        <provider
+            android:name=".WallpaperProvider"
+            android:authorities="io.konnecttv.glowlauncher.wallpaper"
+            android:exported="true" />
         <activity
             android:name=".HomeActivity"
             android:exported="true"

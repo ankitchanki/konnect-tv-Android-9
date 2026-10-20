@@ -37,9 +37,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.konnecttv.TvViewModel
 import io.konnecttv.adbPort
 import io.konnecttv.adb.FoundTv
+import io.konnecttv.data.SavedTv
 
 /** What a pair or manual sheet is about. */
-private data class PairTarget(val host: String, val name: String?, val pairPort: Int?)
+private data class PairTarget(val host: String, val name: String?, val pairPort: Int?, val tag: String? = null)
 
 @Composable
 fun ConnectScreen(vm: TvViewModel, busyText: String?) {
@@ -47,6 +48,7 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
     val saved by vm.saved.collectAsStateWithLifecycle()
     var pairing by remember { mutableStateOf<PairTarget?>(null) }
     var manual by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<SavedTv?>(null) }
 
     fun open(tv: FoundTv) = when {
         tv.pairPort != null -> pairing = PairTarget(tv.host, tv.name, tv.pairPort)
@@ -73,7 +75,10 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
             }
 
             if (saved.isNotEmpty()) {
-                item { Text("YOUR TVS", style = Section, modifier = Modifier.padding(top = 8.dp)) }
+                item {
+                    Text("SAVED TVS", style = Section, modifier = Modifier.padding(top = 8.dp))
+                    Text("Tap to reconnect using the saved IP. Edit names, tags or addresses for each TV.", style = Small)
+                }
                 items(saved, key = { "s" + it.id }) { tv ->
                     // A TV on wireless debugging gets a new port after each reboot; mDNS knows the current one.
                     val live = found.firstOrNull { it.host == tv.host }
@@ -83,9 +88,10 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(tv.name, style = Body)
-                                Text("${tv.host} · ${if (live != null) "on Wi-Fi now" else "last seen"}", style = Small)
+                                if (tv.tag.isNotBlank()) Text(tv.tag, style = Small.copy(color = C.Accent))
+                                Text("${tv.host}:${live?.tlsPort ?: tv.port} · ${if (live != null) "on Wi-Fi now" else "saved address"}", style = Small)
                             }
-                            Text("Forget", style = Small, modifier = Modifier.clickable { vm.forget(tv.id) }.padding(8.dp))
+                            Text("Edit", style = Small.copy(color = C.Accent), modifier = Modifier.clickable { editing = tv }.padding(12.dp))
                         }
                     }
                 }
@@ -150,7 +156,7 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
             if (target.pairPort == null) Field(port, { port = it.filter(Char::isDigit) }, "Pairing port (shown on TV)", KeyboardType.Number)
             CodeBoxes(code) { code = it.filter(Char::isDigit).take(6) }
             PrimaryButton("Pair", enabled = code.length == 6 && adbPort(port) != null) {
-                vm.pair(target.host, adbPort(port) ?: return@PrimaryButton, code, target.name)
+                vm.pair(target.host, adbPort(port) ?: return@PrimaryButton, code, target.name, target.tag)
                 pairing = null
             }
         }
@@ -158,18 +164,55 @@ fun ConnectScreen(vm: TvViewModel, busyText: String?) {
         GlassSheet(manual, onDismiss = { manual = false }) {
             var host by remember { mutableStateOf("") }
             var port by remember { mutableStateOf("5555") }
+            var name by remember { mutableStateOf("") }
+            var tag by remember { mutableStateOf("") }
             Text("Connect by IP", style = Body.copy(fontSize = 17.sp))
             Text("Find the IP on the TV: Settings › Network › your Wi-Fi.", style = Small)
+            saved.firstOrNull()?.let { last ->
+                SecondaryButton("Use last IP · ${last.name}") {
+                    host = last.host
+                    port = (found.firstOrNull { it.host == last.host }?.tlsPort ?: last.port).toString()
+                    name = last.name
+                    tag = last.tag
+                }
+            }
             Field(host, { host = it.trim() }, "TV IP, e.g. 192.168.1.24", KeyboardType.Uri)
             Field(port, { port = it.filter(Char::isDigit) }, "Port (5555, or the one under Wireless debugging)", KeyboardType.Number)
+            Field(name, { name = it.take(80) }, "TV name (optional), e.g. Living room")
+            Field(tag, { tag = it.take(80) }, "Tag (optional), e.g. Friend's TV")
+            Text("Remembered on this phone after a successful connection. Each TV keeps its own name, tag and address.", style = Small)
             PrimaryButton("Connect", enabled = host.isNotEmpty() && adbPort(port) != null) {
-                vm.connect(host, adbPort(port) ?: return@PrimaryButton)
+                vm.connect(host, adbPort(port) ?: return@PrimaryButton, name.takeIf { it.isNotBlank() }, tag = tag)
                 manual = false
             }
             SecondaryButton("Pair with code instead") {
-                if (host.isNotEmpty()) { pairing = PairTarget(host, null, null); manual = false } else vm.say("Enter the TV IP first.")
+                if (host.isNotEmpty()) { pairing = PairTarget(host, name.takeIf { it.isNotBlank() }, null, tag); manual = false } else vm.say("Enter the TV IP first.")
             }
         }
+        editing?.let { selected -> TvDetailsSheet(vm, selected) { editing = null } }
+    }
+}
+
+@Composable
+fun TvDetailsSheet(vm: TvViewModel, tv: SavedTv, onDismiss: () -> Unit) {
+    GlassSheet(true, onDismiss = onDismiss) {
+        var name by remember(tv.id) { mutableStateOf(tv.name) }
+        var tag by remember(tv.id) { mutableStateOf(tv.tag) }
+        var host by remember(tv.id) { mutableStateOf(tv.host) }
+        var port by remember(tv.id) { mutableStateOf(tv.port.toString()) }
+        Text("Edit saved TV", style = Body.copy(fontSize = 17.sp))
+        Text("TV name", style = Small)
+        Field(name, { name = it.take(80) }, "Living room TV")
+        Text("Tag (optional)", style = Small)
+        Field(tag, { tag = it.take(80) }, "Home, Friend's TV, Bedroom…")
+        Text("Address for the next connection", style = Small)
+        Field(host, { host = it.trim() }, "TV IP", KeyboardType.Uri)
+        Field(port, { port = it.filter(Char::isDigit) }, "Connection port", KeyboardType.Number)
+        PrimaryButton("Save TV", enabled = name.isNotBlank() && host.isNotBlank() && adbPort(port) != null) {
+            vm.editTv(tv.id, name, tag, host, adbPort(port) ?: return@PrimaryButton)
+            onDismiss()
+        }
+        SecondaryButton("Forget this TV", color = C.Danger) { vm.forget(tv.id); onDismiss() }
     }
 }
 

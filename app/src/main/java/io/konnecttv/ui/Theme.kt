@@ -24,6 +24,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -309,6 +313,7 @@ fun BoxScope.SheetOverlay(host: SheetHost) {
         val drag = remember(last) { Animatable(0f) }
         val scope = rememberCoroutineScope()
         val closeAt = with(LocalDensity.current) { 110.dp.toPx() }
+        val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.92f
         Column(
             Modifier
                 .offset { IntOffset(0, drag.value.roundToInt()) }
@@ -318,10 +323,12 @@ fun BoxScope.SheetOverlay(host: SheetHost) {
                     onDragStopped = { velocity -> if (drag.value > closeAt || velocity > 1800f) onDismiss() else drag.animateTo(0f) },
                 )
                 .fillMaxWidth()
+                .heightIn(max = maxHeight)
                 .glass(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                 .clickable(remember { MutableInteractionSource() }, indication = null) {}
                 // Rides up with the keyboard so text fields stay visible.
                 .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp)
                 .padding(top = 10.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

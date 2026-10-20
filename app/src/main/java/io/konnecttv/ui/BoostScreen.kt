@@ -1,5 +1,7 @@
 package io.konnecttv.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -79,6 +81,10 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
     var pickSleep by remember { mutableStateOf(false) }
     var pickHome by remember { mutableStateOf(false) }
     var launcherMenu by remember { mutableStateOf(false) }
+    var clearWallpaper by remember { mutableStateOf(false) }
+    val wallpaperDraft by vm.wallpaperDraft.collectAsStateWithLifecycle()
+    val wallpaperError by vm.wallpaperError.collectAsStateWithLifecycle()
+    val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let(vm::prepareWallpaper) }
     val launcherOn = tweaks?.launcherOn == true
 
     Box(Modifier.fillMaxSize()) {
@@ -96,6 +102,13 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
 
             LauncherOrb(launcherOn, busy, tv.name) {
                 if (launcherOn) launcherMenu = true else { vm.loadHomeChoices(); pickHome = true }
+            }
+
+            Card {
+                Text("TV wallpaper", style = Body)
+                Text(if (launcherOn) "Choose a photo from your phone, preview its crop and send it to ${tv.name}." else "Turn on Glowlauncher above to personalize its background.", style = Small)
+                PrimaryButton(if (busy) "Working…" else "Choose wallpaper", enabled = launcherOn && !busy) { pickWallpaper.launch("image/*") }
+                if (launcherOn) SecondaryButton("Restore glow background") { if (!busy) clearWallpaper = true }
             }
 
             val t = tweaks
@@ -129,6 +142,16 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
             Text("Active on ${tv.name}.", style = Small)
             PrimaryButton("Edit home apps") { launcherMenu = false; vm.loadHomeChoices(); pickHome = true }
             SecondaryButton("Turn off, bring back the TV's own home") { launcherMenu = false; vm.setLauncher(false) }
+        }
+
+        GlassSheet(clearWallpaper, onDismiss = { clearWallpaper = false }) {
+            Text("Remove TV wallpaper?", style = Body)
+            Text("Restore Glowlauncher's original background on ${tv.name}.", style = Small)
+            PrimaryButton("Restore background", enabled = !busy) { clearWallpaper = false; vm.clearWallpaper() }
+        }
+
+        wallpaperDraft?.takeIf { it.tvId == tv.id }?.let { draft ->
+            WallpaperEditor(draft, busy, vm::closeWallpaper, onApply = { vm.applyWallpaper(it) }, error = wallpaperError)
         }
 
         val setup by vm.launcherSetup.collectAsStateWithLifecycle()
