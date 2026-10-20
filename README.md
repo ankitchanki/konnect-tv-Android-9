@@ -1,6 +1,6 @@
 <p align="center"><img src=".github/assets/icon.png" width="112" alt="KonnectTV logo"></p>
 
-<h1 align="center">KonnectTV</h1>
+<h1 align="center">KonnectTV — Android 9+ Fork</h1>
 
 This fork supports **Android 9+ phones and Android TV 9+**. It keeps the phone companion and bundles Glowlauncher for the TV. Download this fork's development-signed test builds from [Releases](https://github.com/ankitchanki/konnect-tv-Android-9/releases).
 
@@ -49,9 +49,9 @@ This Android 9+ adaptation keeps KonnectTV as a **phone companion** for Android 
 
 Install the companion APK on your **phone**. Glowlauncher is bundled inside it and is installed on the TV from **Boost**. The separate Glowlauncher APK is only needed for manual launcher installation; it is not the phone companion.
 
-Download `KonnectTV-Android9.apk` from [this fork's Releases page](https://github.com/ankitchanki/konnect-tv-Android-9/releases) and install it on your phone. `Glowlauncher.apk` is the optional standalone TV launcher; the phone APK already bundles it. These are development-signed prereleases. Nine unit tests and Android lint checks passed, but runtime tests remain unverified because the available software emulator did not finish booting.
+Download `KonnectTV-Android9.apk` from [this fork's Releases page](https://github.com/ankitchanki/konnect-tv-Android-9/releases) and install it on your phone. `Glowlauncher.apk` is the optional standalone TV launcher; the phone APK already bundles it. These are development-signed prereleases. Nine unit tests, Android lint checks and Android 9 emulator UI smoke tests [passed in GitHub Actions](https://github.com/ankitchanki/konnect-tv-Android-9/actions/runs/39436985921). Physical TV testing has not been completed.
 
-You can also build this source or use the `KonnectTV-Android9-test-build` artifact from this fork's **Actions** tab. If an upstream build with the same package name is already installed, Android may require uninstalling it first because its signing key differs. Uninstalling removes that app's saved connections and history. The original project's [release page](https://github.com/yashoncode/konnect-tv/releases/latest) contains upstream builds, not this adaptation.
+You can also build this source or use the `KonnectTV-Android9-test-build` artifact from this fork's **Actions** tab. If an upstream build with the same package name is already installed, Android may require uninstalling it first because its signing key differs. Uninstalling removes that app's saved connections and history.
 
 ## Set up the TV (once)
 
@@ -126,17 +126,9 @@ keyPassword=...
 
 ## Credits
 
+This project is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnect-tv). Credit for the original app and Glowlauncher belongs to the upstream project. This fork adds Android 9+ compatibility while retaining the phone companion.
+
 Inspired by [TV Detox](https://github.com/Ansub/tv-detox). Glowlauncher is based on TV Detox's home screen.
-
-## Support KonnectTV
-
-KonnectTV is free, has no ads and always will. I build it in my spare time because I love using it.
-If it made your TV a little faster and you'd like to say thanks, you can buy me a coffee.
-It's completely optional, and every coffee is truly appreciated. ☕
-
-<p align="center"><a href="https://buymeacoffee.com/yashwynth"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee"></a></p>
-
-A star on GitHub or sharing KonnectTV with a friend helps just as much. Thank you for using it! ❤️
 
 ## License
 
