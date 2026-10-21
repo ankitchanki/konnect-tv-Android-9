@@ -12,6 +12,13 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RemoteControlsTest {
+    @Test fun quickLaunchPicksTheFirstInstalledPackage() {
+        val pm = "package:com.netflix.ninja\npackage:com.google.android.youtube\npackage:com.google.android.youtube.tv\npackage:in.startv.hotstar.dplus.tv\n"
+        assertEquals("com.google.android.youtube.tv", QuickApp.YouTube.installedIn(pm))
+        assertEquals("in.startv.hotstar.dplus.tv", QuickApp.Hotstar.installedIn(pm))
+        assertNull(QuickApp.Hotstar.installedIn("package:in.startv.hotstarx\npackage:com.netflix.ninja"))
+    }
+
     @Test fun lostPairingServiceClearsOnlyThatPort() {
         val index = DiscoveryInventory()
         index.update("remote", index.begin("remote"), "192.168.1.1", "TV", DiscoveryKind.REMOTE, 6466)

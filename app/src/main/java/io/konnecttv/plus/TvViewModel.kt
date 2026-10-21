@@ -564,7 +564,15 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- apps ----------
 
-    fun launch(pkg: String) = work { a ->
+    fun launch(pkg: String) = work { a -> start(a, pkg) }
+
+    /** Opens a quick-launch app using whichever of its packages this TV has. */
+    fun launch(app: QuickApp) = work("Open ${app.label}") { a ->
+        val pkg = app.installedIn(a.sh("pm list packages")) ?: return@work say("${app.label} is not installed on this TV.")
+        start(a, pkg)
+    }
+
+    private fun start(a: Adb, pkg: String) {
         val out = a.sh("monkey -p $pkg -c android.intent.category.LEANBACK_LAUNCHER 1 2>&1")
         if ("aborted" in out) a.sh("monkey -p $pkg -c android.intent.category.LAUNCHER 1")
     }

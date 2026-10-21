@@ -101,8 +101,9 @@ class RemoteMediaTest {
         }
         compose.onNodeWithContentDescription("TV volume").assertIsDisplayed()
         screenshot("remote-sliders.png")
-        compose.onNodeWithText("Play / Pause").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Power").assertIsDisplayed()
+        compose.onNodeWithText("YouTube").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Hotstar").assertIsDisplayed()
+        compose.onNodeWithText("Off").performScrollTo().assertIsDisplayed()
         screenshot("remote-buttons.png")
     }
 

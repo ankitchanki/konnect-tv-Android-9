@@ -163,7 +163,7 @@ val Small get() = TextStyle(fontSize = 12.sp, color = C.Muted)
 val Section get() = TextStyle(fontSize = 11.sp, color = C.Muted, letterSpacing = 0.8.sp, fontWeight = FontWeight.Medium)
 
 @Composable
-fun Card(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+fun Card(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, bottom: Dp = 12.dp, content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     Column(
         modifier
@@ -172,7 +172,7 @@ fun Card(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, content: 
             .background(C.Card)
             .border(1.dp, C.Border, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = bottom),
         content = content,
     )
 }

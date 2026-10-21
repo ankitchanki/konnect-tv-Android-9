@@ -6,24 +6,32 @@
 
 This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnect-tv). Original app and Glowlauncher credit belongs to upstream. This fork adds Android 9 compatibility, wallpaper editing, named TV connections, diagnostics and reviewed package controls.
 
-[Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md)
+[Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md) · [UI design (SVG)](docs/design/README.md)
+
+## What's new
+
+- **Remote layout redesigned:** the D-pad sits on top, then one row of equal keys (**Type · YouTube · Hotstar · Play/Pause · Menu**), then the seek and volume lines, then **Home · Back · Settings · Mute · Off** directly under them. Everything fits on one phone screen without scrolling, with tighter spacing.
+- **One-tap YouTube and Hotstar:** quick-launch keys open whichever YouTube or Hotstar package the TV has installed, or say that it is not installed.
+- **Vol − and Vol + keys removed:** the volume line sets TV volume directly. Mute stays.
+- **Branch release workflow:** a separate workflow builds a release APK from the development branch, signed with repository secrets when they are set.
+- **Vector UI designs:** every phone screen, sheet and Glowlauncher TV state as editable SVG in [docs/design](docs/design/README.md).
 
 ## UI previews
 
-Screenshots from **Konnect TV Plus 2.1.0 on Android 9 and Android 16**, using sample TV, playback and package data. Tap an image to open it at full size.
+The new Remote is shown as its design mockup (dark and light); emulator screenshots of it will replace these after the next screenshot run. The other images are screenshots from **Konnect TV Plus 2.1.0 on Android 9 and Android 16**, using sample TV, playback and package data. Tap an image to open it at full size.
 
 <table>
   <tr>
-    <th>Remote: video and volume sliders</th>
-    <th>Remote: button controls</th>
+    <th>Remote (dark)</th>
+    <th>Remote (light)</th>
   </tr>
   <tr>
-    <td align="center"><a href=".github/assets/plus/remote-sliders.png"><img src=".github/assets/plus/remote-sliders.png" width="260" alt="Konnect TV Plus Remote control panel with a sample video progress line, elapsed and total time, tap-or-drag seeking, volume at 40 percent and the directional pad"></a></td>
-    <td align="center"><a href=".github/assets/plus/remote-buttons.png"><img src=".github/assets/plus/remote-buttons.png" width="260" alt="Lower Remote control panel with video and volume lines, D-pad, Back, Home, Type, volume down, mute, volume up, power, play pause, menu and TV settings buttons"></a></td>
+    <td align="center"><a href="docs/design/phone/06-remote.svg"><img src="docs/design/phone/06-remote.svg" width="260" alt="Remote design: D-pad, a row of Type, YouTube, Hotstar, Play/Pause and Menu keys, the media card with seek and volume lines, then Home, Back, Settings, Mute and Off keys above the tab bar"></a></td>
+    <td align="center"><a href="docs/design/phone/07-remote-light.svg"><img src="docs/design/phone/07-remote-light.svg" width="260" alt="The same Remote layout in the light theme"></a></td>
   </tr>
   <tr>
-    <td>Tap or drag a line to request the selected volume or playback position. Unsupported controls show a reason.</td>
-    <td>Scroll to reach the remaining controls. The original remote buttons remain available alongside the sliders.</td>
+    <td>All keys share one size and fit on one screen. Tap or drag a line to request the selected volume or playback position; unsupported controls show a reason.</td>
+    <td>The sun/moon button in the header switches themes.</td>
   </tr>
   <tr>
     <th>Saved TVs, names and tags</th>
@@ -102,6 +110,8 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 | Install launcher from phone | Bundled Glowlauncher | Retained in Boost |
 | TV wallpaper | Glow colours and RGB | Phone photo picker, TV-ratio preview, crop/fit, pinch, drag, zoom and dimming |
 | Saved TVs | Saved connections | Editable names, tags, addresses/ports and **Use last IP** |
+| Remote layout | D-pad, volume keys, scrolling key rows | Equal keys around the media lines, one screen, no Vol −/+ keys |
+| Quick launch | None | One-tap YouTube and Hotstar |
 | Absolute media sliders | No volume/seek lines | Tap/drag volume and playback position, supported media-session checks and explicit TV access setup |
 | Diagnostics | Status messages | Settings before connection, persistent rotating logs, filters, export/share and TV snapshots |
 | Package rules | Existing Detox rules | TCL and other OEM exact-package rules, source links, feature trade-offs and protected component reasons |
@@ -111,13 +121,25 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 
 ## Features
 
-- **Remote:** D-pad, OK, back, home, volume, mute, power and playback; type on the TV using the phone keyboard. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
+- **Remote:** D-pad and OK; Type (phone keyboard), Play/Pause and Menu; Home, Back, TV Settings, Mute and Off right under the media lines. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
+- **Quick launch:** **YouTube** and **Hotstar** keys open the app on the TV in one tap.
 - **Apps:** Actual inventory including disabled apps, icons, state and reason. Open apps, install a phone-selected APK, manage reviewed optional apps or your own apps. Critical and unreviewed system apps are protected from destructive actions.
 - **Detox:** Automatically identifies manufacturer/model and matches the packages actually present. New vendor rules start unchecked. Read each reason before disabling; use **Already off** to enable an app disabled before Plus was installed.
 - **Boost:** RAM/storage information, animation controls, screensaver, sleep timer and background-app cleanup. Glowlauncher keeps the stock launcher installed and enabled; Home selection depends on TV permissions and firmware.
 - **Saved TVs:** One-tap reconnect; edit names, tags and addresses. **Use last IP · TV name** fills the manual connection form with the latest saved TV.
 - **Diagnostics:** Connection attempts, discovery errors, command exit codes, installation responses, wallpaper operations and phone crashes. Logs stay on the phone until you export/share.
 - **Light/dark appearance:** Android 9-compatible UI with blur on newer phones.
+
+### Quick launch: YouTube and Hotstar
+
+Tap **YouTube** or **Hotstar** on Remote. Plus checks the TV's installed packages and opens the first match:
+
+| Key | Packages tried, in order |
+|:--|:--|
+| YouTube | `com.google.android.youtube.tv`, `com.google.android.youtube.googletv`, `com.amazon.firetv.youtube`, `com.google.android.youtube` |
+| Hotstar | `in.startv.hotstar`, `in.startv.hotstar.dplus.tv`, `in.startv.hotstar.dplus` |
+
+If none is installed, a status message says so. The keys only open the app; signing in and playback stay inside that app.
 
 ### Tap-to-set volume and video position
 
@@ -126,6 +148,8 @@ On **Remote**, the media card shows the active video's or song's title, elapsed/
 Choose **Enable media sliders** once on the Remote screen. It installs or updates the bundled Glowlauncher TV companion and enables its Android notification-listener access for active playback sessions. This setup keeps your existing TV Home selection; Boost can separately make Glowlauncher your Home. Android notification access is broader than media access, but this implementation does not read or save notification contents. Use **Remote → ••• → Disable playback access** to revoke it. Absolute volume can remain available while playback access is revoked. Removing the TV companion also removes its media sliders. If firmware blocks setup, enable **Glowlauncher media controls** in the TV’s Notification access settings, then tap **Refresh media state**; the settings path varies by manufacturer.
 
 The phone calls a shell-only media provider in the small TV companion over the existing authorized ADB connection. State refreshes about every three seconds while Remote is visible and the app is in the foreground; elapsed time advances between refreshes. A seek checks that the active media identity still matches the preview, preventing an old drag from seeking a different video after playback changes.
+
+**Seeking in YouTube, Hotstar and Cloudstream:** the line seeks only when the app's media session offers seeking with a known duration. Apps built on ExoPlayer/Media3, such as Cloudstream, usually do; YouTube often does; Hotstar may not, and live matches and live channels never do. When an app does not support it, the line is disabled with a reason; use Play/Pause and the D-pad in the app instead. None of these apps has been tested on a physical TV yet.
 
 **Compatibility:** A TV or HDMI/receiver setup with fixed media volume cannot offer absolute volume adjustment. Playback seeking requires an active Android media session, a known duration and the player's seek action. Live streams and apps that omit those details show a disabled line and a reason. Manufacturer restrictions can block media access; the remaining D-pad/key controls still work. A player may ignore a seek request or report its new position with a delay. The sliders reflect subsequent TV state rather than claiming universal player support.
 
@@ -199,6 +223,25 @@ storePassword=...
 keyAlias=konnecttv-plus
 keyPassword=...
 ```
+
+### Release APK from the development branch
+
+`.github/workflows/branch-release.yml` runs on every push to the development branch and never on `main`. It runs unit tests and lint, builds release and debug APKs, and uploads them as an Actions artifact.
+
+To get an APK that installs as an update over an existing signed release, add these repository secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Value |
+|:--|:--|
+| `KEYSTORE_BASE64` | The release keystore file, base64-encoded (`base64 -w0 konnecttv-plus.jks`) |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_ALIAS` | Key alias |
+| `KEY_PASSWORD` | Key password |
+
+The workflow writes the key to a temporary file only for the build, prints the certificate's SHA-256 in the run summary, and deletes the key afterwards. Without the secrets, the release APK is unsigned and the debug APK is for testing only: it cannot update an installed release-signed app. Never commit the keystore or its passwords.
+
+### UI design files
+
+[docs/design](docs/design/README.md) holds vector mockups of all 32 phone screens and sheets, 6 Glowlauncher TV states and a components sheet. The SVG files have no scripts. Regenerate them with `python3 konnect.py ..` from `docs/design/generator`.
 
 ## Credits and license
 
