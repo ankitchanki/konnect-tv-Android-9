@@ -1,5 +1,6 @@
 package io.konnecttv.plus.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,9 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.konnecttv.plus.QuickApp
 import io.konnecttv.plus.TabBarClearance
 import io.konnecttv.plus.TvViewModel
 import io.konnecttv.plus.adb.Key
@@ -65,32 +70,29 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
     Box(Modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
-            RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
-            Spacer(Modifier.height(8.dp))
             DPad(::press)
-            Spacer(Modifier.height(8.dp))
+            // Volume keys are gone: the volume line in the media card sets it directly.
             KeyRow {
-                RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
-                RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
                 RemoteKey("Type", Modifier.weight(1f), { Glyph(Glyphs.Keyboard) }) { typing = true }
-            }
-            KeyRow {
-                RemoteKey("Vol −", Modifier.weight(1f), { Glyph(Glyphs.VolumeDown) }) { press(Key.VOL_DOWN) }
-                RemoteKey("Mute", Modifier.weight(1f), { Glyph(Glyphs.Mute) }) { press(Key.MUTE) }
-                RemoteKey("Vol +", Modifier.weight(1f), { Glyph(Glyphs.VolumeUp) }) { press(Key.VOL_UP) }
-                RemoteKey("Power", Modifier.weight(1f), { PowerIcon(C.Danger, Modifier.size(20.dp)) }) { press(Key.POWER) }
-            }
-            KeyRow {
-                RemoteKey("Play / Pause", Modifier.weight(2f), { Glyph(Glyphs.PlayPause) }) { press(Key.PLAY_PAUSE) }
+                RemoteKey("YouTube", Modifier.weight(1f), { YouTubeMark() }) { vm.launch(QuickApp.YouTube) }
+                RemoteKey("Hotstar", Modifier.weight(1f), { HotstarMark() }) { vm.launch(QuickApp.Hotstar) }
+                RemoteKey("Play/Pause", Modifier.weight(1f), { Glyph(Glyphs.PlayPause) }) { press(Key.PLAY_PAUSE) }
                 RemoteKey("Menu", Modifier.weight(1f), { Glyph(Glyphs.Menu) }) { press(Key.MENU) }
+            }
+            RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
+            // The keys used most while watching sit right under the seek and volume lines.
+            KeyRow {
+                RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
+                RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
                 RemoteKey("Settings", Modifier.weight(1f), { Glyph(Glyphs.Settings) }) { press(Key.SETTINGS) }
+                RemoteKey("Mute", Modifier.weight(1f), { Glyph(Glyphs.Mute) }) { press(Key.MUTE) }
+                RemoteKey("Off", Modifier.weight(1f), { PowerIcon(C.Danger, Modifier.size(20.dp)) }) { press(Key.POWER) }
             }
             Spacer(Modifier.height(TabBarClearance))
         }
-
         GlassSheet(typing, onDismiss = { typing = false }) {
             var text by remember { mutableStateOf("") }
             Text("Type on TV", style = Body.copy(fontSize = 17.sp))
@@ -162,7 +164,7 @@ private fun Arrow(rotation: Float, modifier: Modifier, onClick: () -> Unit) =
 
 @Composable
 private fun KeyRow(content: @Composable RowScope.() -> Unit) =
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), content = content)
 
 @Composable
 private fun RemoteKey(label: String, modifier: Modifier, icon: @Composable () -> Unit, onClick: () -> Unit) {
@@ -174,6 +176,22 @@ private fun RemoteKey(label: String, modifier: Modifier, icon: @Composable () ->
     ) {
         icon()
         Spacer(Modifier.height(4.dp))
-        Text(label, style = Small.copy(fontSize = 11.sp))
+        Text(label, style = Small.copy(fontSize = 11.sp), maxLines = 1)
     }
+}
+
+/** YouTube's red play badge, drawn so the quick-launch key needs no bundled logo. */
+@Composable
+private fun YouTubeMark() = Canvas(Modifier.size(28.dp, 20.dp)) {
+    drawRoundRect(Color(0xFFFF0000), cornerRadius = CornerRadius(6.dp.toPx()))
+    val p = Path().apply {
+        moveTo(size.width * .4f, size.height * .27f); lineTo(size.width * .66f, size.height * .5f); lineTo(size.width * .4f, size.height * .73f); close()
+    }
+    drawPath(p, Color.White)
+}
+
+/** Hotstar's navy tile with a star. */
+@Composable
+private fun HotstarMark() = Box(Modifier.size(24.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFF0F1E5C)), contentAlignment = Alignment.Center) {
+    Glyph(Glyphs.Sparkle, Color.White, 14.dp)
 }
