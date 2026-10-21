@@ -77,10 +77,15 @@ class PlusDiagnosticsTest {
 
     @Test fun tvPackageManagerReturnsActualInstallFailureAndExitCode() {
         val marker = "__PLUS_TEST_INSTALL__"
-        val command = "printf invalid | sh -c '${installationCommand(7, marker)}'"
-        val raw = ParcelFileDescriptor.AutoCloseInputStream(
-            InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
-        ).bufferedReader().use { it.readText() }
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        // UiAutomation tokenizes arguments itself: pipes and quoting must live in an actual script.
+        val script = File(instrumentation.targetContext.getExternalFilesDir(null), "invalid-apk-test.sh")
+        val raw = try {
+            script.writeText("printf invalid | ( ${installationCommand(7, marker)} ) 2>&1\n")
+            ParcelFileDescriptor.AutoCloseInputStream(
+                instrumentation.uiAutomation.executeShellCommand("sh ${script.path}")
+            ).bufferedReader().use { it.readText() }
+        } finally { script.delete() }
         val result = parseShellResult(raw, marker)
         assertNotEquals(raw, 0, result.exitCode)
         assertFalse(raw, result.output.lines().any { it.trim() == "Success" })
