@@ -8,6 +8,61 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 [Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md)
 
+## UI previews
+
+Screenshots from **Konnect TV Plus 2.0.0 on Android 9**, using sample TV and package data. Tap an image to open it at full size.
+
+<table>
+  <tr>
+    <th>Saved TVs, names and tags</th>
+    <th>TV wallpaper editor</th>
+  </tr>
+  <tr>
+    <td align="center"><a href=".github/assets/plus/saved-tvs.png"><img src=".github/assets/plus/saved-tvs.png" width="260" alt="Konnect TV Plus connection screen with a named saved TV, Friend's TV tag, saved IP address and Settings / logs button"></a></td>
+    <td align="center"><a href=".github/assets/plus/wallpaper-editor.png"><img src=".github/assets/plus/wallpaper-editor.png" width="260" alt="TV wallpaper editor showing a 1920 by 1080 preview, crop and fit options, zoom and position controls"></a></td>
+  </tr>
+  <tr>
+    <td>Reconnect using a saved address; edit the TV name and tag. The manual form also offers Use last IP.</td>
+    <td>Frame a wallpaper for the TV with crop/fit, zoom, position and dimming. The image shown is a sample gradient.</td>
+  </tr>
+  <tr>
+    <th>Diagnostic logs</th>
+    <th>Already off and app recovery</th>
+  </tr>
+  <tr>
+    <td align="center"><a href=".github/assets/plus/diagnostic-logs.png"><img src=".github/assets/plus/diagnostic-logs.png" width="260" alt="Diagnostic logs screen with export, share, pause, search and error filter controls, showing a sample installation failure with sensitive values redacted"></a></td>
+    <td align="center"><a href=".github/assets/plus/already-off.png"><img src=".github/assets/plus/already-off.png" width="260" alt="Detox screen with sample TCL packages already disabled or removed for the TV profile, explanatory reasons and Enable or Restore original app buttons"></a></td>
+  </tr>
+  <tr>
+    <td>Inspect connection and installation errors from the first launch. Export or share a report when troubleshooting.</td>
+    <td>See packages disabled before Plus was installed, read their feature trade-offs, and enable or restore them.</td>
+  </tr>
+</table>
+
+These UI captures use test fixtures; they are not evidence of testing a physical TCL TV. [Screenshot provenance](.github/assets/plus/README.md).
+
+### Glowlauncher on the TV
+
+<p align="center"><img src=".github/assets/glowlauncher.gif" width="720" alt="Glowlauncher TV home screen with a clock and app dock over its animated glow background"></p>
+
+The upstream animation shows the original glow background. Plus also lets you apply a phone-selected wallpaper using the editor above.
+
+<details>
+<summary>Original core screens: Remote, Apps, Detox and Boost</summary>
+
+These upstream screenshots show the original workflow retained in Plus. They are references for the earlier UI; current Plus adds Settings and the screens above.
+
+<p align="center">
+  <a href=".github/assets/remote.jpg"><img src=".github/assets/remote.jpg" width="180" alt="Original KonnectTV remote screen with a D-pad, media controls and four-tab navigation"></a>
+  <a href=".github/assets/apps.jpg"><img src=".github/assets/apps.jpg" width="180" alt="Original KonnectTV app manager showing TV apps and their icons"></a>
+  <a href=".github/assets/detox.jpg"><img src=".github/assets/detox.jpg" width="180" alt="Original KonnectTV Detox screen showing optional apps and undo history"></a>
+  <a href=".github/assets/boost.jpg"><img src=".github/assets/boost.jpg" width="180" alt="Original KonnectTV Boost screen with RAM and storage information and Glowlauncher controls"></a>
+</p>
+
+Original UI images and animation are credited to [KonnectTV by yashoncode](https://github.com/yashoncode/konnect-tv).
+
+</details>
+
 ## Install and connect
 
 1. Install **KonnectTVPlus.apk on your phone**. The phone and TV both need Android 9 (API 28) or newer and must be reachable on the same local network.
