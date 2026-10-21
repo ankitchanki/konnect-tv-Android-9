@@ -36,7 +36,7 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 ## UI previews
 
-These are real **Konnect TV Plus 2.3.1 on Android 9** emulator captures. The D-pad Remote fixtures include the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. The compact touchpad fixture isolates the Remote controls without the tab bar. All use sample TV, playback and package data. The shortcut fixtures show monogram fallbacks because these streaming apps are not installed on the emulator; connected TVs supply their real icons. Tap an image to open it at full size.
+These are real **Konnect TV Plus 2.3.2 on Android 9** emulator captures. The D-pad Remote fixtures include the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. The compact touchpad fixture isolates the Remote controls without the tab bar. All use sample TV, playback and package data. The shortcut fixtures show monogram fallbacks because these streaming apps are not installed on the emulator; connected TVs supply their real icons. Tap an image to open it at full size.
 
 <table>
   <tr>
@@ -54,6 +54,9 @@ These are real **Konnect TV Plus 2.3.1 on Android 9** emulator captures. The D-p
   <tr><th colspan="2">Compact touchpad · one-handed mode</th></tr>
   <tr><td colspan="2" align="center"><a href=".github/assets/plus/touchpad.png"><img src=".github/assets/plus/touchpad.png" width="260" alt="Actual compact touchpad with centre OK, Dim and Volume edge labels, three app shortcuts and Menu"></a></td></tr>
   <tr><td colspan="2">Offline UI fixture with no tab bar: TV volume/playback are intentionally unavailable. Cursor, dimming and bubbles require explicit TV access. Phone dictation has been removed; Type on TV remains in Controls.</td></tr>
+  <tr><th colspan="2">Confirmed companion replacement</th></tr>
+  <tr><td colspan="2" align="center"><a href=".github/assets/plus/companion-replacement.png"><img src=".github/assets/plus/companion-replacement.png" width="260" alt="Actual Android 9 confirmation sheet for an older differently signed Glowlauncher, warning that wallpaper and home-app list will be removed, with Replace Glowlauncher and Cancel buttons"></a></td></tr>
+  <tr><td colspan="2">Real incompatible-signing test fixture; the blank background isolates the confirmation. Cancel keeps the installed build. Replace verifies stock Home before removing the old launcher, then continues setup. Removed launcher data cannot be restored.</td></tr>
   <tr>
     <th>Saved TVs, names and tags</th>
     <th>TV wallpaper editor</th>
