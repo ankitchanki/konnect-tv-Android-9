@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import org.json.JSONObject
+import kotlinx.coroutines.channels.Channel
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
@@ -105,6 +107,13 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     val message = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val identity = MutableStateFlow<TvIdentity?>(null)
+    private var remoteInputChecked = false
+    val remoteInputAvailable = MutableStateFlow(false)
+    val screenBrightness = MutableStateFlow(100)
+    private data class PointerMove(val tvId: String, val dx: Int, val dy: Int)
+    private val pointerDeltaLock = Any()
+    private var pendingPointer: PointerMove? = null
+    private val pointerMoves = Channel<Unit>(Channel.CONFLATED)
 
     val found: StateFlow<List<FoundTv>> = discoverTvs(app)
         .catch { DiagnosticLog.record("ERROR", "Discovery", "TV discovery failed; manual IP connection remains available", it); emit(emptyList()) }
@@ -113,6 +122,20 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private val tv get() = (conn.value as? Conn.On)?.tv
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            for (signal in pointerMoves) {
+                val move = synchronized(pointerDeltaLock) { pendingPointer.also { pendingPointer=null } } ?: continue
+                val a = adb ?: continue
+                if (tv?.id != move.tvId || !operationLock.tryLock()) continue
+                try {
+                    if (a === adb && tv?.id == move.tvId) remoteControl(a,"move",JSONObject().put("dx",move.dx).put("dy",move.dy))
+                } catch (e: Exception) {
+                    if(e is CancellationException) throw e
+                    remoteInputAvailable.value = false
+                    DiagnosticLog.record("WARN","Touchpad","Pointer unavailable; use directional mode",e)
+                } finally { operationLock.unlock() }
+            }
+        }
         // Reconnect to the last TV quietly; the connect screen stays up if it isn't there.
         saved.value.firstOrNull()?.let { connect(it.host, it.port, it.name, quiet = true) }
     }
@@ -157,10 +180,14 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             tweaks.value = null
             identity.value = null
             remoteMedia.value = null
+            remoteInputAvailable.value = false
+            remoteInputChecked = false
+            screenBrightness.value = 100
             remoteMediaError.value = null
             homeChoices.value = null
             wallpaperDraft.value = null
             _conn.value = Conn.On(savedTv)
+            RemotePreferences.feedback(success = true)
             refreshAll()
         }.onFailure { e ->
             DiagnosticLog.record("ERROR", "Connection", "Connection to $host:$port failed; ${e.javaClass.simpleName}", e)
@@ -223,6 +250,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             say("Pairing failed. Check the code on the TV and try again.")
             return@launch
         }
+        RemotePreferences.feedback(success = true)
         DiagnosticLog.record("INFO", "Pairing", "Pairing succeeded; waiting for wireless connection-port discovery")
         // The TLS connect port is announced over mDNS; give it a few seconds to show up.
         repeat(20) {
@@ -241,6 +269,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         operationLock.withLock {
             withContext(Dispatchers.IO) { lock.withLock { adb?.runCatching { close() }; adb = null } }
             wallpaperDraft.value = null
+            remoteInputAvailable.value = false
+            remoteInputChecked = false
+            screenBrightness.value = 100
             remoteMedia.value = null
             remoteMediaError.value = null
             identity.value = null
@@ -529,7 +560,15 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         if (!operationLock.tryLock()) return@launch
         try {
             if (a !== adb || tv?.id != id) return@launch
-            val value = withContext(Dispatchers.IO) { mediaCommand(a) }
+            val value = withContext(Dispatchers.IO) {
+                val media = mediaCommand(a)
+                if(!remoteInputChecked) {
+                    try { remoteControl(a,"status") }
+                    catch(e: Exception) { if(e is CancellationException) throw e; remoteInputAvailable.value=false }
+                    remoteInputChecked=true
+                }
+                media
+            }
             if (a === adb && tv?.id == id) { remoteMedia.value = value; remoteMediaError.value = null }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -547,6 +586,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         DiagnosticLog.record("INFO", "Remote media", "Requested TV media-volume index ${index.coerceIn(volume.min, volume.max)}")
         remoteMedia.value = mediaCommand(a, "volume ${index.coerceIn(volume.min, volume.max)}")
         remoteMediaError.value = null
+        RemotePreferences.feedback()
     }
 
     fun seekTvPlayback(key: String, position: Long) = work("Seek TV playback") { a ->
@@ -554,6 +594,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         check(playback.seekSupported && key == playback.key && key.matches(Regex("[a-f0-9]{24}"))) { "Playback changed or seeking is unavailable. Refresh and try again." }
         DiagnosticLog.record("INFO", "Remote media", "Requested seek to ${position.coerceIn(0, playback.durationMs)} ms (media title omitted)")
         remoteMedia.value = mediaCommand(a, "seek $key ${position.coerceIn(0, playback.durationMs)}")
+        RemotePreferences.feedback()
         remoteMediaError.value = null
     }
 
@@ -561,6 +602,92 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     fun key(code: Int) = work { it.keyevent(code) }
     fun type(text: String) = work { it.type(text) }
+
+    private fun remoteControl(a: Adb, method: String, data: JSONObject = JSONObject()): JSONObject {
+        val encoded = Base64.encodeToString(data.toString().toByteArray(Charsets.UTF_8),Base64.NO_WRAP)
+        val raw = a.checked("content call --uri content://io.konnecttv.glowlauncher.remote --method $method --arg $encoded",seconds=5)
+        val payload = Regex("PLUS_REMOTE=([A-Za-z0-9+/=]+)").find(raw)?.groupValues?.get(1) ?: error("Update TV companion and enable TV touchpad/bubbles in Settings.")
+        val result = JSONObject(String(Base64.decode(payload,Base64.NO_WRAP),Charsets.UTF_8))
+        check(result.optBoolean("ok") && (method=="status" || result.optBoolean("available"))) { "TV touchpad/bubbles unavailable. Check TV accessibility and Glowlauncher phone privacy settings." }
+        remoteInputAvailable.value = result.optBoolean("available")
+        screenBrightness.value = result.optInt("brightness",100)
+        return result
+    }
+
+    fun movePointer(dx: Int, dy: Int) {
+        val id=tv?.id ?: return
+        synchronized(pointerDeltaLock) {
+            val old=pendingPointer?.takeIf { it.tvId==id }
+            pendingPointer=PointerMove(id,((old?.dx ?: 0)+dx).coerceIn(-250,250),((old?.dy ?: 0)+dy).coerceIn(-250,250))
+        }
+        pointerMoves.trySend(Unit)
+    }
+    fun pointerClick() = work("TV cursor tap") { a -> remoteControl(a,"click"); RemotePreferences.feedback() }
+    fun setScreenBrightness(value: Int) = work("TV screen dimming") { a -> remoteControl(a,"dim",JSONObject().put("value",value.coerceIn(20,100))); RemotePreferences.feedback() }
+    fun sendTvMessage(text: String) = work("Send TV bubble (content omitted)") { a ->
+        require(text.isNotBlank() && text.length <= 240) { "Use 1–240 characters." }
+        remoteControl(a,"message",JSONObject().put("text",text.trim()))
+        // Message content never enters the status toast, history or diagnostics.
+        say("Temporary bubble sent to the TV.")
+    }
+    fun refreshRemoteInput() = work("Check TV touchpad access") { a -> remoteControl(a,"status") }
+
+    fun enableRemoteInput() = work("Enable TV touchpad and bubbles") { a ->
+        val wasInstalled = a.sh("pm path $LAUNCHER_PKG").startsWith("package:")
+        val apk = File(getApplication<Application>().cacheDir,"glowlauncher.apk")
+        getApplication<Application>().assets.open("glowlauncher.apk").use { input -> apk.outputStream().use { input.copyTo(it) } }
+        val install = apk.inputStream().use { a.install(it,apk.length()) }
+        check(install.startsWith("Success")) { "TV companion install failed: $install" }
+        if(!wasInstalled) record(Change(System.currentTimeMillis(),"install",LAUNCHER_PKG,"TV companion installed"))
+        tweaks.value = readTweaks(a)
+        val service = "$LAUNCHER_PKG/.RemoteInputService"
+        val enabled = a.sh("settings get secure enabled_accessibility_services")
+        val next = withService(enabled,service).replace("'", "'\"'\"'")
+        a.checked("settings put secure enabled_accessibility_services '$next'")
+        a.checked("settings put secure accessibility_enabled 1")
+        repeat(12) { if(remoteControl(a,"status").optBoolean("available")) return@work say("TV touchpad and bubbles enabled. Home unchanged."); delay(250) }
+        error("Enable Konnect TV Plus touchpad in TV Accessibility settings and allow overlays in Glowlauncher Settings / phone privacy.")
+    }
+    fun disableRemoteInput() = work("Disable TV touchpad and bubbles") { a ->
+        val remove = setOf("$LAUNCHER_PKG/.RemoteInputService","$LAUNCHER_PKG/$LAUNCHER_PKG.RemoteInputService")
+        val next = a.sh("settings get secure enabled_accessibility_services").trim().split(':').filter { it !in remove && it != "null" && it.isNotBlank() }.joinToString(":").replace("'", "'\"'\"'")
+        a.checked("settings put secure enabled_accessibility_services '$next'")
+        remoteInputAvailable.value = false; screenBrightness.value = 100
+        say("TV touchpad access revoked. Other accessibility services kept.")
+    }
+
+    val setupImport = MutableStateFlow<SetupTransfer?>(null)
+    fun previewSetup(uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        runCatching {
+            val bytes = ByteArray(32769)
+            val count = getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+                var count=0
+                while(count<bytes.size) { val read=input.read(bytes,count,bytes.size-count);if(read<0)break;if(read==0)error("Cannot read setup file.");count+=read }
+                count
+            } ?: error("Cannot open setup file.")
+            require(count<=32768) { "Setup file is too large." }
+            SetupTransfer.parse(String(bytes,0,count,Charsets.UTF_8))
+        }.onSuccess { setupImport.value=it }.onFailure { say("Setup import failed. Use a valid Konnect TV Plus setup JSON file.") }
+    }
+    fun confirmSetupImport() {
+        val data=setupImport.value ?: return
+        // Existing phone records win; a shared file never replaces an already configured TV address.
+        val existing=store.tvs().map { it.id }.toSet()
+        data.tvs.filter { it.id !in existing }.reversed().forEach(store::saveTv)
+        RemotePreferences.set("haptics",data.haptics);RemotePreferences.set("oneHanded",data.oneHanded);RemotePreferences.set("touchpad",data.touchpad)
+        saved.value=store.tvs();setupImport.value=null
+        say("Saved TV hints imported. Each new phone still needs TV debugging approval.")
+    }
+    fun shareSetup() = viewModelScope.launch(Dispatchers.IO) {
+        runCatching {
+            val dir=File(getApplication<Application>().cacheDir,"setup-exports").apply { mkdirs() }
+            val file=File(dir,"KonnectTVPlus-setup.json")
+            file.writeText(SetupTransfer(store.tvs(),RemotePreferences.haptics.value,RemotePreferences.oneHanded.value,RemotePreferences.touchpad.value).json())
+            val uri=FileProvider.getUriForFile(getApplication(),"io.konnecttv.plus.logs",file)
+            val intent=Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM,uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            withContext(Dispatchers.Main) { getApplication<Application>().startActivity(Intent.createChooser(intent,"Share TV setup · review recipient").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }.onFailure { say("Could not share setup file.") }
+    }
 
     // ---------- apps ----------
 

@@ -450,9 +450,24 @@ class HomeActivity : Activity() {
         when (key) {
             ADD -> showAddMenu()
             INPUTS -> showInputs()
-            SETTINGS -> start(Intent(Settings.ACTION_SETTINGS))
+            SETTINGS -> showPhoneSettings()
             NETWORK -> start(Intent(Settings.ACTION_WIFI_SETTINGS)) || start(Intent(Settings.ACTION_SETTINGS))
             else -> launchIntent(key)?.let(::start)
+        }
+    }
+
+    private fun showPhoneSettings() {
+        val prefs = getSharedPreferences("remote_privacy",0)
+        val overlays = prefs.getBoolean("overlays",true)
+        val playback = prefs.getBoolean("sharePlayback",true)
+        panel("Settings and phone privacy",listOf("Android TV settings", "Phone cursor / bubbles: ${if(overlays) "allowed" else "blocked"}",
+            "Share playback title: ${if(playback) "allowed" else "blocked"}","Manage TV accessibility"),null) { which ->
+            when(which) {
+                0 -> start(Intent(Settings.ACTION_SETTINGS))
+                1 -> { prefs.edit().putBoolean("overlays",!overlays).apply();RemoteInputService.active?.resetOverlays() }
+                2 -> prefs.edit().putBoolean("sharePlayback",!playback).apply()
+                3 -> start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
         }
     }
 

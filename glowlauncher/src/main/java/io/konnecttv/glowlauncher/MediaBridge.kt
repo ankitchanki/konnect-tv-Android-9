@@ -58,7 +58,10 @@ internal object MediaBridge {
         }.getOrElse { JSONObject().put("supported", false).put("hint", "The TV did not allow media-volume access.").put("diagnostic", "Volume access: ${it.javaClass.simpleName}: ${it.message}") }
         val playback = runCatching {
             val c = selected(sessions, context)
-            if (c == null) JSONObject().put("title", "No active playback").put("hint", "Open a video or music app on the TV.")
+            if (c == null) {
+                val shared=context.getSharedPreferences("remote_privacy",0).getBoolean("sharePlayback",true)
+                JSONObject().put("title",if(shared) "No active playback" else "TV playback sharing off").put("hint",if(shared) "Open a video or music app on the TV." else "TV owner disabled sharing in Glowlauncher phone privacy settings.")
+            }
             else {
                 val m = c.metadata
                 val s = c.playbackState
@@ -67,7 +70,7 @@ internal object MediaBridge {
                 val position = mediaPosition(s?.position ?: 0, duration, playing, s?.playbackSpeed ?: 1f,
                     if (s != null && s.lastPositionUpdateTime > 0) SystemClock.elapsedRealtime() - s.lastPositionUpdateTime else 0)
                 val canSeek = duration > 0 && s != null && (s.actions and PlaybackState.ACTION_SEEK_TO) != 0L
-                JSONObject().put("key", mediaKey(c)).put("title", (m?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: c.packageName).take(160))
+                JSONObject().put("package",c.packageName).put("key", mediaKey(c)).put("title", (m?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: c.packageName).take(160))
                     .put("duration", duration).put("position", position).put("playing", playing).put("speed", s?.playbackSpeed ?: 1f)
                     .put("seekSupported", canSeek).put("hint", if (canSeek) "Tap or drag to seek" else if (duration <= 0) "Live or unknown duration: seeking unavailable." else "This app does not expose seeking.")
             }
@@ -75,7 +78,7 @@ internal object MediaBridge {
         return JSONObject().put("volume", volume).put("playback", playback)
     }
 
-    private fun selected(manager: MediaSessionManager, context: Context): MediaController? = manager.getActiveSessions(ComponentName(context, MediaAccessService::class.java))
+    private fun selected(manager: MediaSessionManager, context: Context): MediaController? = if(!context.getSharedPreferences("remote_privacy",0).getBoolean("sharePlayback",true)) null else manager.getActiveSessions(ComponentName(context, MediaAccessService::class.java))
         .let { list -> list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
             ?: list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PAUSED }
             ?: list.firstOrNull() }

@@ -31,6 +31,7 @@ fun RemoteMediaControls(state: RemoteMedia?, error: String?, busy: Boolean,
     Card(bottom = 6.dp) {
         val playback = state?.playback
         Text(playback?.title ?: if (error == null) "Checking TV media…" else "Media controls unavailable", style = Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!playback?.appPackage.isNullOrBlank()) Text("${playback?.appPackage} · ${if(playback?.playing==true) "Playing" else "Paused / stopped"}",style=Small,maxLines=1,overflow=TextOverflow.Ellipsis)
         var seekDrag by remember(playback?.key) { mutableStateOf<Float?>(null) }
         var seekTouching by remember(playback?.key) { mutableStateOf(false) }
         LaunchedEffect(seekDrag, seekTouching) { if (seekDrag != null && !seekTouching) { delay(3_500); seekDrag = null } }

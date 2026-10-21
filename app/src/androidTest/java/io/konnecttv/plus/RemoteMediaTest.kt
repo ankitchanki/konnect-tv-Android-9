@@ -97,7 +97,7 @@ class RemoteMediaTest {
         showRemote(small = false)
         compose.onNodeWithTag("remote-dpad").assertHeightIsAtLeast(260.dp)
         compose.onNodeWithText("YouTube").assertIsDisplayed()
-        compose.onNodeWithText("Hotstar").assertIsDisplayed()
+        compose.onNodeWithText("JioHotstar").assertIsDisplayed()
         compose.onNodeWithText("Off").assertIsDisplayed()
         assertBottomKeysNearTabs()
         screenshot("remote-sliders.png")
@@ -119,6 +119,7 @@ class RemoteMediaTest {
 
     private fun showRemote(small: Boolean) {
         val vm = ViewModelProvider(compose.activity)[TvViewModel::class.java]
+        RemotePreferences.set("oneHanded",false);RemotePreferences.set("touchpad",false)
         compose.runOnIdle {
             vm.remoteMedia.value = sample()
             compose.activity.setContent {

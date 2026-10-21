@@ -13,6 +13,7 @@ object LogSanitizer {
         .replace(Regex("(?i)([?&](?:token|key|sig|secret|code)=)[^&\\s]+"), "$1[redacted]")
 
     fun command(value: String): String = when {
+        value.contains("io.konnecttv.glowlauncher.remote") -> "TV touchpad/message (payload omitted)"
         value.contains("input text") -> "Remote text input (content omitted)"
         (value.contains("MediaBridge") || value.contains("io.konnecttv.glowlauncher.media")) -> "TV media controls (metadata omitted)"
         value.contains("IconDump") -> "App icon helper (image payload omitted)"
@@ -20,7 +21,7 @@ object LogSanitizer {
     }
 
     fun output(command: String, value: String): String = when {
-        command.contains("MediaBridge") || command.contains("io.konnecttv.glowlauncher.media") || command.contains("input text") || command.contains("IconDump") || command.contains("ro.serialno") || command.contains("android_id") -> "[sensitive or binary output omitted]"
+        command.contains("io.konnecttv.glowlauncher.remote") || command.contains("MediaBridge") || command.contains("io.konnecttv.glowlauncher.media") || command.contains("input text") || command.contains("IconDump") || command.contains("ro.serialno") || command.contains("android_id") -> "[sensitive or binary output omitted]"
         else -> clean(value).take(12000).let { if (value.length > 12000) "$it\n[output truncated]" else it }
     }
 }

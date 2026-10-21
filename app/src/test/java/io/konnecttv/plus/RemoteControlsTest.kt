@@ -19,6 +19,16 @@ class RemoteControlsTest {
         assertNull(QuickApp.Hotstar.installedIn("package:in.startv.hotstarx\npackage:com.netflix.ninja"))
     }
 
+    @Test fun cloudstreamAndJioHotstarKeepTheirOwnPackagePriority() {
+        assertEquals("JioHotstar",QuickApp.Hotstar.label)
+        assertEquals("com.lagradost.cloudstream3",QuickApp.Cloudstream.installedIn("package:com.lagradost.cloudstream3.prerelease\npackage:com.lagradost.cloudstream3"))
+        assertNull(QuickApp.Cloudstream.installedIn("package:com.lagradost.cloudstream3.fake"))
+    }
+    @Test fun tvBubbleContentsNeverEnterDetailedLogs() {
+        val command="content call --uri content://io.konnecttv.glowlauncher.remote --method message --arg PRIVATE_PAYLOAD"
+        assertFalse(LogSanitizer.command(command).contains("PRIVATE_PAYLOAD"))
+        assertFalse(LogSanitizer.output(command,"PRIVATE_PAYLOAD").contains("PRIVATE_PAYLOAD"))
+    }
     @Test fun lostPairingServiceClearsOnlyThatPort() {
         val index = DiscoveryInventory()
         index.update("remote", index.begin("remote"), "192.168.1.1", "TV", DiscoveryKind.REMOTE, 6466)

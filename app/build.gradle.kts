@@ -21,8 +21,8 @@ android {
         // Android 9+: older phones use solid floating surfaces instead of RenderEffect blur.
         minSdk = 28
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.2.0"
+        versionCode = 7
+        versionName = "2.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Include x86_64 so the same build can be verified on Android 9 emulators.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }

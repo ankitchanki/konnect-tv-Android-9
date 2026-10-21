@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- mDNS discovery of TVs on the Wi-Fi -->
@@ -10,6 +11,7 @@
     <queries>
         <provider android:authorities="io.konnecttv.glowlauncher.wallpaper" />
         <provider android:authorities="io.konnecttv.glowlauncher.media" />
+        <provider android:authorities="io.konnecttv.glowlauncher.remote" />
     </queries>
 
     <application

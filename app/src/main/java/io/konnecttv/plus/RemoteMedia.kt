@@ -10,7 +10,7 @@ data class RemoteVolume(val index: Int = 0, val min: Int = 0, val max: Int = 0, 
 
 data class RemotePlayback(val key: String = "", val title: String = "No active playback", val durationMs: Long = 0,
     val positionMs: Long = 0, val playing: Boolean = false, val speed: Float = 1f, val seekSupported: Boolean = false,
-    val hint: String = "Open a video or music app on the TV.", val receivedAt: Long = 0) {
+    val hint: String = "Open a video or music app on the TV.", val receivedAt: Long = 0, val appPackage: String = "") {
     fun positionAt(now: Long) = mediaPosition(positionMs, durationMs, playing, speed, now - receivedAt)
 }
 
@@ -36,7 +36,7 @@ internal fun parseRemoteMedia(raw: String, now: Long): RemoteMedia {
         RemoteVolume(v.optInt("index").coerceIn(min, max), min, max, v.optBoolean("supported") && max > min, v.optString("hint")),
         RemotePlayback(p.optString("key"), p.optString("title", "No active playback"), duration,
             p.optLong("position").coerceIn(0, duration), p.optBoolean("playing"), p.optDouble("speed", 1.0).toFloat(),
-            p.optBoolean("seekSupported") && duration > 0 && p.optString("key").isNotBlank(), p.optString("hint"), now),
+            p.optBoolean("seekSupported") && duration > 0 && p.optString("key").isNotBlank(), p.optString("hint"), now, p.optString("package")),
         listOf(v.optString("diagnostic"), p.optString("diagnostic")).filter { it.isNotBlank() },
         json.optBoolean("needsAccess"),
     )

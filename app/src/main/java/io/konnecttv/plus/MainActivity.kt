@@ -85,8 +85,14 @@ class MainActivity : ComponentActivity() {
             val haze = remember { HazeState() }
             val sheets = remember { SheetHost() }
             val press = LocalIndication.current as IndicationNodeFactory
+            val systemHaptics = LocalHapticFeedback.current
+            val controlledHaptics = remember(systemHaptics) { object : androidx.compose.ui.hapticfeedback.HapticFeedback {
+                override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+                    if (RemotePreferences.haptics.value) systemHaptics.performHapticFeedback(hapticFeedbackType)
+                }
+            } }
             val indication = remember(press) { HapticIndication(press) }
-            CompositionLocalProvider(LocalHaze provides haze, LocalSheetHost provides sheets, LocalIndication provides indication) { Root(vm) }
+            CompositionLocalProvider(LocalHapticFeedback provides controlledHaptics, LocalHaze provides haze, LocalSheetHost provides sheets, LocalIndication provides indication) { Root(vm) }
         }
     }
 }

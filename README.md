@@ -8,7 +8,18 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 [Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md) · [UI design (SVG)](docs/design/README.md)
 
-## What's new in 2.2.0
+## What's new in 2.3.0
+
+- **Phone haptics on/off:** pairing/connection success, buttons and completed seek/volume changes.
+- **Touchpad + centre OK:** directional swipes; optional visible TV cursor through a separately enabled accessibility service. Left edge adjusts screen dimming; right edge adjusts supported media volume.
+- **One-handed mode:** compact lower pad and a bottom Controls sheet.
+- **YouTube · JioHotstar · Cloudstream:** three quick-launch shortcuts, current JioHotstar artwork and upstream Cloudstream icon. Mic offers phone dictation, review and TV text entry.
+- **Temporary TV bubbles and viewer privacy:** send a short message; TV viewers can block overlays or playback-title sharing in Glowlauncher Settings. Glowlauncher is now **1.3.0**, still Android TV 9+.
+- **Family setup sharing:** export/import saved TV hints and Remote preferences using Android sharing. Each new phone must still authorize/pair with the TV; ADB keys are never copied.
+
+[Setup, limitations, TV privacy and mobile-data/VPN access](docs/REMOTE-AND-HOME-ACCESS.md) · [Icon sources](docs/APP-ICON-SOURCES.md)
+
+### Previous Remote redesign (2.2.0)
 
 - **Remote layout redesigned:** the D-pad sits on top, then one row of equal keys (**Type · YouTube · Hotstar · Play/Pause · Menu**), then the seek and volume lines, then **Home · Back · Settings · Mute · Off** directly under them. Tall phones get a larger D-pad and the keys sit just above the tab bar. Short screens scroll while keeping a D-pad of at least 220dp.
 - **One-tap YouTube and Hotstar:** quick-launch keys open the first matching YouTube or Hotstar package in the supported package list, or say that it is not installed.

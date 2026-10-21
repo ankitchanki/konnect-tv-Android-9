@@ -1,6 +1,9 @@
 package io.konnecttv.plus.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import io.konnecttv.plus.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,6 +43,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.testTag
@@ -51,6 +57,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.konnecttv.plus.RemotePreferences
 import io.konnecttv.plus.QuickApp
 import io.konnecttv.plus.TvViewModel
 import io.konnecttv.plus.adb.Key
@@ -58,6 +65,11 @@ import io.konnecttv.plus.data.SavedTv
 
 @Composable
 fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
+    val compact by RemotePreferences.oneHanded.collectAsStateWithLifecycle()
+    val touchpad by RemotePreferences.touchpad.collectAsStateWithLifecycle()
+    var controls by remember { mutableStateOf(false) }
+    var voice by remember { mutableStateOf(false) }
+    var bubble by remember { mutableStateOf(false) }
     var typing by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var editTv by remember { mutableStateOf(false) }
@@ -81,14 +93,13 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
             modifier = Modifier.fillMaxWidth().testTag("remote-scroll").verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         ) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
-            DPad(::press)
-            // Volume keys are gone: the volume line in the media card sets it directly.
+            if(touchpad) RemoteTouchpad(vm,compact) else DPad(::press,compact)
             KeyRow {
-                RemoteKey("Type", Modifier.weight(1f), { Glyph(Glyphs.Keyboard) }) { typing = true }
                 RemoteKey("YouTube", Modifier.weight(1f), { YouTubeMark() }) { vm.launch(QuickApp.YouTube) }
-                RemoteKey("Hotstar", Modifier.weight(1f), { HotstarMark() }) { vm.launch(QuickApp.Hotstar) }
+                RemoteKey("JioHotstar", Modifier.weight(1f), { Image(painterResource(R.drawable.jiohotstar),"JioHotstar icon",Modifier.size(24.dp)) }) { vm.launch(QuickApp.Hotstar) }
+                RemoteKey("Cloudstream", Modifier.weight(1f), { Image(painterResource(R.drawable.cloudstream),"Cloudstream icon",Modifier.size(24.dp)) }) { vm.launch(QuickApp.Cloudstream) }
                 RemoteKey("Play/Pause", Modifier.weight(1f), { Glyph(Glyphs.PlayPause) }) { press(Key.PLAY_PAUSE) }
-                RemoteKey("Menu", Modifier.weight(1f), { Glyph(Glyphs.Menu) }) { press(Key.MENU) }
+                RemoteKey("Mic", Modifier.weight(1f), { MicMark() }) { voice=true }
             }
             // The keys used most while watching sit right under the seek and volume lines, with almost no gap.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -96,13 +107,30 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
                 KeyRow(Modifier.testTag("remote-bottom-keys")) {
                     RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
                     RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
-                    RemoteKey("Settings", Modifier.weight(1f), { Glyph(Glyphs.Settings) }) { press(Key.SETTINGS) }
+                    RemoteKey("Controls", Modifier.weight(1f), { Glyph(Glyphs.Settings) }) { controls=true }
                     RemoteKey("Mute", Modifier.weight(1f), { Glyph(Glyphs.Mute) }) { press(Key.MUTE) }
                     RemoteKey("Off", Modifier.weight(1f), { PowerIcon(C.Danger, Modifier.size(20.dp)) }) { press(Key.POWER) }
                 }
             }
             // Match the floating tabs plus the actual navigation inset (48dp on some Android 9 devices).
             Spacer(Modifier.navigationBarsPadding().height(88.dp))
+        }
+        VoiceInputSheet(vm,voice) { voice=false }
+        GlassSheet(controls,onDismiss={controls=false}) {
+            Text("Remote controls",style=Body)
+            SecondaryButton(if(touchpad) "Use directional pad" else "Use touchpad") { RemotePreferences.set("touchpad",!touchpad) }
+            SecondaryButton(if(compact) "One-handed mode: on" else "One-handed mode: off") { RemotePreferences.set("oneHanded",!compact) }
+            SecondaryButton("Type on TV") { controls=false;typing=true }
+            SecondaryButton("TV menu") { controls=false;press(Key.MENU) }
+            SecondaryButton("TV settings") { controls=false;press(Key.SETTINGS) }
+            SecondaryButton("Send TV message") { controls=false;bubble=true }
+        }
+        GlassSheet(bubble,onDismiss={bubble=false}) {
+            var note by remember { mutableStateOf("") }
+            Text("Temporary TV bubble",style=Body)
+            Text("Requires TV touchpad/bubble access in Settings. Visible to everyone watching; disappears after about 6 seconds. Message text is not saved in logs.",style=Small)
+            Field(note,{note=it.take(240)},"Message · up to 240 characters")
+            PrimaryButton("Send to TV",enabled=note.isNotBlank() && !busy) { vm.sendTvMessage(note);note="";bubble=false }
         }
         GlassSheet(typing, onDismiss = { typing = false }) {
             var text by remember { mutableStateOf("") }
@@ -176,9 +204,9 @@ private fun FillScreenColumn(screen: Dp, grow: Int, gap: Dp, modifier: Modifier 
 
 /** Fills the square it is given; arrows, their touch zones and OK keep the original 264dp proportions. */
 @Composable
-private fun DPad(press: (Int) -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val side = minOf(maxWidth, maxHeight)
+private fun DPad(press: (Int) -> Unit, compact: Boolean = false) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = if(compact) Alignment.BottomCenter else Alignment.Center) {
+        val side = if(compact) 220.dp else minOf(maxWidth, maxHeight)
         val scale = side / 264.dp
         Box(Modifier.size(side).testTag("remote-dpad").clip(CircleShape).background(C.Card).border(1.dp, C.Border, CircleShape)) {
             val zone = Modifier.size(side / 3).clip(CircleShape)
@@ -228,8 +256,10 @@ private fun YouTubeMark() = Canvas(Modifier.size(28.dp, 20.dp)) {
     drawPath(p, Color.White)
 }
 
-/** Hotstar's navy tile with a star. */
 @Composable
-private fun HotstarMark() = Box(Modifier.size(24.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFF0F1E5C)), contentAlignment = Alignment.Center) {
-    Glyph(Glyphs.Sparkle, Color.White, 14.dp)
+private fun MicMark() = Canvas(Modifier.size(24.dp)) {
+    val stroke=2.dp.toPx()
+    drawRoundRect(C.Muted,Offset(8.dp.toPx(),2.dp.toPx()),Size(8.dp.toPx(),12.dp.toPx()),CornerRadius(4.dp.toPx()),style=Stroke(stroke))
+    drawArc(C.Muted,0f,180f,false,Offset(5.dp.toPx(),7.dp.toPx()),Size(14.dp.toPx(),12.dp.toPx()),style=Stroke(stroke))
+    drawLine(C.Muted,Offset(12.dp.toPx(),19.dp.toPx()),Offset(12.dp.toPx(),23.dp.toPx()),stroke)
 }
