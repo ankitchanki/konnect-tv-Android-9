@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -40,8 +41,12 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.konnecttv.plus.QuickApp
@@ -68,10 +73,11 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
     // Every key already ticks the haptics through the shared press indication.
     fun press(code: Int) = vm.key(code)
 
-    Box(Modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // The D-pad grows into whatever height the keys leave, so the remote reaches the tab bar with no empty band.
+        FillScreenColumn(
+            screen = maxHeight, grow = 1, gap = 10.dp,
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         ) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
             DPad(::press)
@@ -143,27 +149,53 @@ fun TvHeader(tv: SavedTv, onSwitch: () -> Unit, onTheme: () -> Unit, onMenu: () 
     }
 }
 
+/**
+ * Stacks children top to bottom. Child [grow] is measured last as a square that takes the height the
+ * others leave on a [screen]-tall page: never smaller than [min], never wider than the column.
+ * When the page is too short for that minimum, the column grows taller and scrolls.
+ */
+@Composable
+private fun FillScreenColumn(screen: Dp, grow: Int, gap: Dp, modifier: Modifier = Modifier, min: Dp = 220.dp, content: @Composable () -> Unit) =
+    Layout(content, modifier) { measurables, constraints ->
+        val gapPx = gap.roundToPx()
+        val width = constraints.maxWidth
+        val loose = Constraints(maxWidth = width)
+        val placed = arrayOfNulls<Placeable>(measurables.size)
+        measurables.forEachIndexed { i, m -> if (i != grow) placed[i] = m.measure(loose) }
+        val used = placed.sumOf { it?.height ?: 0 } + gapPx * (measurables.size - 1)
+        val side = (screen.roundToPx() - used).coerceAtMost(width).coerceAtLeast(min.roundToPx().coerceAtMost(width))
+        placed[grow] = measurables[grow].measure(Constraints.fixed(width, side))
+        val height = used + side
+        layout(width, height) {
+            var y = 0
+            placed.forEach { p -> p!!.placeRelative((width - p.width) / 2, y); y += p.height + gapPx }
+        }
+    }
+
+/** Fills the square it is given; arrows, their touch zones and OK keep the original 264dp proportions. */
 @Composable
 private fun DPad(press: (Int) -> Unit) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(264.dp).clip(CircleShape).background(C.Card).border(1.dp, C.Border, CircleShape)) {
-            val zone = Modifier.size(88.dp).clip(CircleShape)
-            Arrow(180f, zone.align(Alignment.TopCenter)) { press(Key.UP) }
-            Arrow(0f, zone.align(Alignment.BottomCenter)) { press(Key.DOWN) }
-            Arrow(90f, zone.align(Alignment.CenterStart)) { press(Key.LEFT) }
-            Arrow(270f, zone.align(Alignment.CenterEnd)) { press(Key.RIGHT) }
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val side = minOf(maxWidth, maxHeight)
+        val scale = side / 264.dp
+        Box(Modifier.size(side).clip(CircleShape).background(C.Card).border(1.dp, C.Border, CircleShape)) {
+            val zone = Modifier.size(side / 3).clip(CircleShape)
+            Arrow(180f, scale, zone.align(Alignment.TopCenter)) { press(Key.UP) }
+            Arrow(0f, scale, zone.align(Alignment.BottomCenter)) { press(Key.DOWN) }
+            Arrow(90f, scale, zone.align(Alignment.CenterStart)) { press(Key.LEFT) }
+            Arrow(270f, scale, zone.align(Alignment.CenterEnd)) { press(Key.RIGHT) }
             Box(
-                Modifier.align(Alignment.Center).size(100.dp).clip(CircleShape).background(C.Raised)
+                Modifier.align(Alignment.Center).size(100.dp * scale).clip(CircleShape).background(C.Raised)
                     .border(1.dp, C.RaisedBorder, CircleShape).clickable { press(Key.OK) },
                 contentAlignment = Alignment.Center,
-            ) { Text("OK", style = Body.copy(color = C.Accent, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)) }
+            ) { Text("OK", style = Body.copy(color = C.Accent, fontWeight = FontWeight.SemiBold, fontSize = 17.sp * scale)) }
         }
     }
 }
 
 @Composable
-private fun Arrow(rotation: Float, modifier: Modifier, onClick: () -> Unit) =
-    Box(modifier.clickable(onClick = onClick), contentAlignment = Alignment.Center) { Glyph(Glyphs.Chevron, C.Muted, 30.dp, Modifier.rotate(rotation)) }
+private fun Arrow(rotation: Float, scale: Float, modifier: Modifier, onClick: () -> Unit) =
+    Box(modifier.clickable(onClick = onClick), contentAlignment = Alignment.Center) { Glyph(Glyphs.Chevron, C.Muted, 30.dp * scale, Modifier.rotate(rotation)) }
 
 @Composable
 private fun KeyRow(content: @Composable RowScope.() -> Unit) =

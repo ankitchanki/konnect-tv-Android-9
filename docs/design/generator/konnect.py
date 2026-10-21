@@ -351,7 +351,7 @@ def tv_header(c, name="Living room TV"):
 
 
 def media_card(c, y, error=False, seeking=False):
-    h = 130 if not error else 206
+    h = 130 if not error else 216
     card(c, 16, y, W - 32, h)
     x, w = 30, W - 60
     body(c, x, y + 26, "Media controls unavailable" if error else "Stranger Things · S4 E1 — Netflix")
@@ -380,13 +380,17 @@ def mline(c, x, y, w, frac, enabled):
 
 def remote(c, error=False):
     tv_header(c)
-    cx, cy = W / 2, 90 + 132
-    c.circle(cx, cy, 132, C["Card"], C["Border"])
+    # Like the app, the D-pad takes the height the keys leave above the tab bar.
+    card_h = 130 if not error else 216
+    side = min(W - 32, (H - 100 - 12) - (14 + 76 + card_h + 2 + 66) - 90)
+    k = side / 264
+    cx, cy = W / 2, 90 + side / 2
+    c.circle(cx, cy, side / 2, C["Card"], C["Border"])
     for ang, (dx, dy) in [(180, (0, -88)), (0, (0, 88)), (90, (-88, 0)), (270, (88, 0))]:
-        c.add(f'<g transform="translate({cx + dx:g} {cy + dy:g}) rotate({ang + 90})"><path d="M-5 -10 L5 0 L-5 10" fill="none" stroke="{C["Muted"]}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>')
-    c.circle(cx, cy, 50, C["Raised"], C["RaisedBorder"])
-    c.text(cx, cy + 6, "OK", 17, C["Accent"], 600, "middle")
-    y = cy + 132 + 14
+        c.add(f'<g transform="translate({cx + dx * k:g} {cy + dy * k:g}) rotate({ang + 90}) scale({k:g})"><path d="M-5 -10 L5 0 L-5 10" fill="none" stroke="{C["Muted"]}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>')
+    c.circle(cx, cy, 50 * k, C["Raised"], C["RaisedBorder"])
+    c.text(cx, cy + 6 * k, "OK", 17 * k, C["Accent"], 600, "middle")
+    y = cy + side / 2 + 14
     # Vol −/+ keys are gone: the volume line in the media card does that job.
     # Everyday keys sit in one row of equal keys under the media card.
     key_row(c, y, [("Type", "kbd"), ("YouTube", "yt"), ("Hotstar", "hotstar"), ("Play/Pause", "playpause"), ("Menu", "menu")])
