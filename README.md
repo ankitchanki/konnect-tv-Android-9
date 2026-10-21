@@ -29,7 +29,7 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 ## UI previews
 
-The Remote images are real **Konnect TV Plus 2.2.0** emulator captures, including the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. Other captures remain from **2.1.0 on Android 9 and Android 16**. All use sample TV, playback and package data. Tap an image to open it at full size.
+These are real **Konnect TV Plus 2.3.0 on Android 9** emulator captures. The D-pad Remote fixtures include the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. The compact touchpad fixture isolates the Remote controls without the tab bar. All use sample TV, playback and package data. Tap an image to open it at full size.
 
 <table>
   <tr>
@@ -37,13 +37,16 @@ The Remote images are real **Konnect TV Plus 2.2.0** emulator captures, includin
     <th>Remote · small screen, scrolled</th>
   </tr>
   <tr>
-    <td align="center"><a href=".github/assets/plus/remote-sliders.png"><img src=".github/assets/plus/remote-sliders.png" width="260" alt="Remote screenshot: D-pad, a row of Type, YouTube, Hotstar, Play/Pause and Menu keys, the media card with seek and volume lines, then Home, Back, Settings, Mute and Off keys above the tab bar"></a></td>
+    <td align="center"><a href=".github/assets/plus/remote-sliders.png"><img src=".github/assets/plus/remote-sliders.png" width="260" alt="Remote screenshot: D-pad, a row of YouTube, JioHotstar, Cloudstream, Play/Pause and Mic keys, the media card with seek and volume lines, then Home, Back, Controls, Mute and Off keys above the tab bar"></a></td>
     <td align="center"><a href=".github/assets/plus/remote-buttons.png"><img src=".github/assets/plus/remote-buttons.png" width="260" alt="Actual Remote on a small 360 by 640dp viewport, scrolled to the media lines and bottom keys above the tab bar"></a></td>
   </tr>
   <tr>
     <td>All keys share one size; the D-pad grows to fill available space. Tap or drag a line to request the selected volume or playback position; unsupported controls show a reason.</td>
     <td>Small screens scroll while keeping the D-pad at least 220dp. Navigation-bar insets keep bottom keys clear of the tabs.</td>
   </tr>
+  <tr><th colspan="2">Compact touchpad · one-handed mode</th></tr>
+  <tr><td colspan="2" align="center"><a href=".github/assets/plus/touchpad.png"><img src=".github/assets/plus/touchpad.png" width="260" alt="Actual compact touchpad with centre OK, Dim and Volume edge labels, three app shortcuts and Mic"></a></td></tr>
+  <tr><td colspan="2">Offline UI fixture with no tab bar: TV volume/playback are intentionally unavailable. Cursor, dimming and bubbles require explicit TV access. The phone mic supports reviewed dictation, not live assistant audio forwarding.</td></tr>
   <tr>
     <th>Saved TVs, names and tags</th>
     <th>TV wallpaper editor</th>
@@ -122,7 +125,9 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 | TV wallpaper | Glow colours and RGB | Phone photo picker, TV-ratio preview, crop/fit, pinch, drag, zoom and dimming |
 | Saved TVs | Saved connections | Editable names, tags, addresses/ports and **Use last IP** |
 | Remote layout | D-pad, volume keys, scrolling key rows | Equal keys around the media lines, one screen, no Vol −/+ keys |
-| Quick launch | None | One-tap YouTube and Hotstar |
+| Quick launch | None | YouTube, JioHotstar and Cloudstream |
+| Touchpad / haptics | Basic button feedback | Optional cursor, edge dimming/volume, haptics switch and one-handed mode |
+| Family setup / TV messages | None | Reviewed setup-file sharing, temporary bubbles and TV viewer privacy |
 | Absolute media sliders | No volume/seek lines | Tap/drag volume and playback position, supported media-session checks and explicit TV access setup |
 | Diagnostics | Status messages | Settings before connection, persistent rotating logs, filters, export/share and TV snapshots |
 | Package rules | Existing Detox rules | TCL and other OEM exact-package rules, source links, feature trade-offs and protected component reasons |
@@ -132,8 +137,8 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 
 ## Features
 
-- **Remote:** D-pad and OK; Type (phone keyboard), Play/Pause and Menu; Home, Back, TV Settings, Mute and Off right under the media lines. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
-- **Quick launch:** **YouTube** and **Hotstar** keys open the app on the TV in one tap.
+- **Remote:** D-pad or touchpad with OK; YouTube/JioHotstar/Cloudstream, Play/Pause and Mic; Home, Back, Controls, Mute and Off under the media lines. The Controls bottom sheet contains Type, Menu, TV Settings and TV messages. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
+- **Quick launch:** **YouTube**, **JioHotstar** and **Cloudstream** keys open a supported installed package in one tap.
 - **Apps:** Actual inventory including disabled apps, icons, state and reason. Open apps, install a phone-selected APK, manage reviewed optional apps or your own apps. Critical and unreviewed system apps are protected from destructive actions.
 - **Detox:** Automatically identifies manufacturer/model and matches the packages actually present. New vendor rules start unchecked. Read each reason before disabling; use **Already off** to enable an app disabled before Plus was installed.
 - **Boost:** RAM/storage information, animation controls, screensaver, sleep timer and background-app cleanup. Glowlauncher keeps the stock launcher installed and enabled; Home selection depends on TV permissions and firmware.
@@ -141,14 +146,15 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 - **Diagnostics:** Connection attempts, discovery errors, command exit codes, installation responses, wallpaper operations and phone crashes. Logs stay on the phone until you export/share.
 - **Light/dark appearance:** Android 9-compatible UI with blur on newer phones.
 
-### Quick launch: YouTube and Hotstar
+### Quick launch: YouTube, JioHotstar and Cloudstream
 
-Tap **YouTube** or **Hotstar** on Remote. Plus checks the TV's installed packages and opens the first match:
+Tap **YouTube**, **JioHotstar** or **Cloudstream** on Remote. Plus checks the TV's installed packages and opens the first match:
 
 | Key | Packages tried, in order |
 |:--|:--|
 | YouTube | `com.google.android.youtube.tv`, `com.google.android.youtube.googletv`, `com.amazon.firetv.youtube`, `com.google.android.youtube` |
-| Hotstar | `in.startv.hotstar`, `in.startv.hotstar.dplus.tv`, `in.startv.hotstar.dplus` |
+| JioHotstar | `in.startv.hotstar`, `in.startv.hotstar.tv`, `in.startv.hotstar.androidtv`, `in.startv.hotstar.dplus.tv`, `in.startv.hotstar.dplus` |
+| Cloudstream | `com.lagradost.cloudstream3`, `com.lagradost.cloudstream3.prerelease`, `com.lagradost.cloudstream3.debug` |
 
 If none is installed, a status message says so. The keys only open the app; signing in and playback stay inside that app.
 
@@ -160,7 +166,7 @@ Choose **Enable media sliders** once on the Remote screen. It installs or update
 
 The phone calls a shell-only media provider in the small TV companion over the existing authorized ADB connection. State refreshes about every three seconds while Remote is visible and the app is in the foreground; elapsed time advances between refreshes. A seek checks that the active media identity still matches the preview, preventing an old drag from seeking a different video after playback changes.
 
-**Seeking in YouTube, Hotstar and Cloudstream:** the line seeks only when the app's media session offers seeking with a known duration. Apps built on ExoPlayer/Media3, such as Cloudstream, usually do; YouTube often does; Hotstar may not, and live matches and live channels never do. When an app does not support it, the line is disabled with a reason; use Play/Pause and the D-pad in the app instead. None of these apps has been tested on a physical TV yet.
+**Seeking in YouTube, JioHotstar and Cloudstream:** the line seeks only when the app's media session offers seeking with a known duration. Apps built on ExoPlayer/Media3, such as Cloudstream, usually do; YouTube often does; JioHotstar may not, and live matches and live channels never do. When an app does not support it, the line is disabled with a reason; use Play/Pause and the D-pad in the app instead. None of these apps has been tested on a physical TV yet.
 
 **Compatibility:** A TV or HDMI/receiver setup with fixed media volume cannot offer absolute volume adjustment. Playback seeking requires an active Android media session, a known duration and the player's seek action. Live streams and apps that omit those details show a disabled line and a reason. Manufacturer restrictions can block media access; the remaining D-pad/key controls still work. A player may ignore a seek request or report its new position with a delay. The sliders reflect subsequent TV state rather than claiming universal player support.
 
