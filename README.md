@@ -29,7 +29,7 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 ## UI previews
 
-These are real **Konnect TV Plus 2.3.0 on Android 9** emulator captures. The D-pad Remote fixtures include the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. The compact touchpad fixture isolates the Remote controls without the tab bar. All use sample TV, playback and package data. Tap an image to open it at full size.
+These are real **Konnect TV Plus 2.3.1 on Android 9** emulator captures. The D-pad Remote fixtures include the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. The compact touchpad fixture isolates the Remote controls without the tab bar. All use sample TV, playback and package data. The shortcut fixtures show monogram fallbacks because these streaming apps are not installed on the emulator; connected TVs supply their real icons. Tap an image to open it at full size.
 
 <table>
   <tr>
