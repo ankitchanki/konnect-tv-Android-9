@@ -27,7 +27,8 @@ fun RemoteMediaControls(state: RemoteMedia?, error: String?, busy: Boolean,
     onVolume: (Int) -> Unit, onSeek: (String, Long) -> Unit, onRefresh: () -> Unit, onEnable: () -> Unit = {}) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(state?.playback?.key) { while (true) { now = SystemClock.elapsedRealtime(); delay(500) } }
-    Card {
+    // A short bottom edge so the keys under the card sit right below the volume line.
+    Card(bottom = 6.dp) {
         val playback = state?.playback
         Text(playback?.title ?: if (error == null) "Checking TV media…" else "Media controls unavailable", style = Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
         var seekDrag by remember(playback?.key) { mutableStateOf<Float?>(null) }
@@ -79,7 +80,7 @@ private fun MediaLine(value: Float, label: String, enabled: Boolean, onChange: (
     val active = if (enabled) C.Accent else C.Muted
     val inactive = C.Border
     Slider(value = value.coerceIn(0f, 1f), onValueChange = onChange, onValueChangeFinished = onDone, enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(44.dp).semantics { contentDescription = label },
+        modifier = Modifier.fillMaxWidth().height(34.dp).semantics { contentDescription = label },
         colors = SliderDefaults.colors(thumbColor = active, activeTrackColor = active, inactiveTrackColor = inactive),
         thumb = { Box(Modifier.size(12.dp).background(active, CircleShape)) },
         track = { slider ->

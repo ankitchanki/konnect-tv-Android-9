@@ -41,6 +41,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.konnecttv.plus.QuickApp
@@ -82,14 +83,16 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
                 RemoteKey("Play/Pause", Modifier.weight(1f), { Glyph(Glyphs.PlayPause) }) { press(Key.PLAY_PAUSE) }
                 RemoteKey("Menu", Modifier.weight(1f), { Glyph(Glyphs.Menu) }) { press(Key.MENU) }
             }
-            RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
-            // The keys used most while watching sit right under the seek and volume lines.
-            KeyRow {
-                RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
-                RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
-                RemoteKey("Settings", Modifier.weight(1f), { Glyph(Glyphs.Settings) }) { press(Key.SETTINGS) }
-                RemoteKey("Mute", Modifier.weight(1f), { Glyph(Glyphs.Mute) }) { press(Key.MUTE) }
-                RemoteKey("Off", Modifier.weight(1f), { PowerIcon(C.Danger, Modifier.size(20.dp)) }) { press(Key.POWER) }
+            // The keys used most while watching sit right under the seek and volume lines, with almost no gap.
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
+                KeyRow {
+                    RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
+                    RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
+                    RemoteKey("Settings", Modifier.weight(1f), { Glyph(Glyphs.Settings) }) { press(Key.SETTINGS) }
+                    RemoteKey("Mute", Modifier.weight(1f), { Glyph(Glyphs.Mute) }) { press(Key.MUTE) }
+                    RemoteKey("Off", Modifier.weight(1f), { PowerIcon(C.Danger, Modifier.size(20.dp)) }) { press(Key.POWER) }
+                }
             }
             Spacer(Modifier.height(TabBarClearance))
         }
@@ -176,7 +179,8 @@ private fun RemoteKey(label: String, modifier: Modifier, icon: @Composable () ->
     ) {
         icon()
         Spacer(Modifier.height(4.dp))
-        Text(label, style = Small.copy(fontSize = 11.sp), maxLines = 1)
+        // Five keys a row leave little width on small phones: shorten rather than clip mid-letter.
+        Text(label, style = Small.copy(fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

@@ -351,7 +351,7 @@ def tv_header(c, name="Living room TV"):
 
 
 def media_card(c, y, error=False, seeking=False):
-    h = 140 if not error else 210
+    h = 130 if not error else 206
     card(c, 16, y, W - 32, h)
     x, w = 30, W - 60
     body(c, x, y + 26, "Media controls unavailable" if error else "Stranger Things · S4 E1 — Netflix")
@@ -391,7 +391,7 @@ def remote(c, error=False):
     # Everyday keys sit in one row of equal keys under the media card.
     key_row(c, y, [("Type", "kbd"), ("YouTube", "yt"), ("Hotstar", "hotstar"), ("Play/Pause", "playpause"), ("Menu", "menu")])
     y += 76
-    y += media_card(c, y, error) + 10
+    y += media_card(c, y, error) + 2
     key_row(c, y, [("Home", "home"), ("Back", "back"), ("Settings", "gear"), ("Mute", "mute"), ("Off", "power")])
     tab_bar(c, "Remote")
 
