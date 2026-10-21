@@ -351,23 +351,22 @@ def tv_header(c, name="Living room TV"):
 
 
 def media_card(c, y, error=False, seeking=False):
-    h = 170 if not error else 248
+    h = 140 if not error else 222
     card(c, 16, y, W - 32, h)
     x, w = 30, W - 60
-    body(c, x, y + 28, "Media controls unavailable" if error else "Stranger Things · S4 E1 — Netflix")
+    body(c, x, y + 26, "Media controls unavailable" if error else "Stranger Things · S4 E1 — Netflix")
     frac = 0 if error else .38
-    mline(c, x, y + 50, w, frac, not error)
-    small(c, x, y + 76, "0:00" if error else "29:17")
-    small(c, x + w, y + 76, "—:—" if error else "1:17:52", anchor="end")
-    small(c, x, y + 96, "Seeking… waiting for the player" if seeking else ("Connect a TV to read playback and volume." if error else "Tap or drag the line to seek"))
-    small(c, x, y + 124, "Volume")
-    small(c, x + w, y + 124, "Unavailable" if error else "42%", anchor="end")
-    mline(c, x, y + 138, w, 0 if error else .42, not error)
+    mline(c, x, y + 36, w, frac, not error)
+    small(c, x, y + 62, "0:00" if error else "29:17")
+    small(c, x + w, y + 62, "—:—" if error else "1:17:52", anchor="end")
+    small(c, x, y + 80, "Seeking… waiting for the player" if seeking else ("Connect a TV to read playback and volume." if error else "Tap or drag the line to seek"))
+    small(c, x, y + 104, "Volume")
+    small(c, x + w, y + 104, "Unavailable" if error else "42%", anchor="end")
+    mline(c, x, y + 112, w, 0 if error else .42, not error)
     if error:
-        small(c, x, y + 172, "Waiting for TV volume…")
-        para(c, x, y + 192, "The TV couldn't provide media controls. Other remote buttons remain available. See Diagnostic logs.", w)
-        primary(c, x, y + 224, w, "Retry media controls", h=44)
-        return h + 8
+        small(c, x, y + 146, "Waiting for TV volume…")
+        para(c, x, y + 166, "The TV couldn't provide media controls. Other remote buttons remain available.", w)
+        primary(c, x, y + 172, w, "Retry media controls", h=40)
     return h
 
 
@@ -381,16 +380,16 @@ def mline(c, x, y, w, frac, enabled):
 
 def remote(c, error=False):
     tv_header(c)
-    y = media_card(c, 92, error) + 92 + 20
-    cx, cy = W / 2, y + 132
+    cx, cy = W / 2, 90 + 132
     c.circle(cx, cy, 132, C["Card"], C["Border"])
     for ang, (dx, dy) in [(180, (0, -88)), (0, (0, 88)), (90, (-88, 0)), (270, (88, 0))]:
         c.add(f'<g transform="translate({cx + dx:g} {cy + dy:g}) rotate({ang + 90})"><path d="M-5 -10 L5 0 L-5 10" fill="none" stroke="{C["Muted"]}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g>')
     c.circle(cx, cy, 50, C["Raised"], C["RaisedBorder"])
     c.text(cx, cy + 6, "OK", 17, C["Accent"], 600, "middle")
-    y = cy + 132 + 20
+    y = cy + 132 + 14
+    # Vol −/+ keys are gone: the volume line in the media card below does that job.
     rows = [[("Back", "back", 1), ("Home", "home", 1), ("Type", "kbd", 1)],
-            [("Vol −", "vol_down", 1), ("Mute", "mute", 1), ("Vol +", "vol_up", 1), ("Power", "power", 1)],
+            [("Mute", "mute", 1), ("YouTube", "yt", 1), ("Hotstar", "hotstar", 1), ("Power", "power", 1)],
             [("Play / Pause", "playpause", 2), ("Menu", "menu", 1), ("Settings", "gear", 1)]]
     for row in rows:
         total = sum(r[2] for r in row)
@@ -401,11 +400,18 @@ def remote(c, error=False):
             c.rect(x, y, kw, 66, 18, C["Card"], C["Border"])
             if ic == "power":
                 power(c, x + kw / 2, y + 26, C["Danger"])
+            elif ic == "yt":
+                c.rect(x + kw / 2 - 14, y + 16, 28, 20, 6, "#FF0000")
+                c.path(f"M{x + kw / 2 - 4:g} {y + 21:g} L{x + kw / 2 + 6:g} {y + 26:g} L{x + kw / 2 - 4:g} {y + 31:g}Z", "#FFFFFF")
+            elif ic == "hotstar":
+                c.rect(x + kw / 2 - 13, y + 13, 26, 26, 7, "#0F1E5C")
+                icon(c, "sparkle", x + kw / 2 - 8, y + 18, 16, "#FFFFFF", fill=True)
             else:
                 icon(c, ic, x + kw / 2 - 11, y + 15, 22, C["Text"], 1.7)
             c.text(x + kw / 2, y + 54, label, 11, C["Muted"], 400, "middle")
             x += kw + 10
         y += 76
+    media_card(c, y - 2, error)
     tab_bar(c, "Remote")
 
 
