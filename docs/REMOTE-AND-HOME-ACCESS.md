@@ -1,6 +1,15 @@
 # Remote, family setup and access away from home
 
-Konnect TV Plus 2.3.1 and Glowlauncher 1.3.1 both require Android 9/API 28 or later. Upgrade installs retain existing launcher apps, wallpaper and settings when signed with the same certificate.
+Konnect TV Plus 2.3.2 and Glowlauncher 1.3.1 both require Android 9/API 28 or later. Upgrade installs retain existing launcher apps, wallpaper and settings when signed with the same certificate.
+
+### An older Glowlauncher signed by another build
+
+Media-slider setup, touchpad setup and Boost all check the installed APK's certificate against the bundled companion. A mismatch (including Android's `INSTALL_FAILED_UPDATE_INCOMPATIBLE` fallback) opens **Replace older Glowlauncher?**. Nothing is uninstalled until you choose **Replace Glowlauncher**. **Cancel**, Back or dismiss keeps the old installation.
+
+Replacement permanently removes the old Glowlauncher's wallpaper and home-app list. If it owns Home, Plus first restores and verifies an enabled stock Home using the same restoration path as Boost's Turn off. A different already-selected Home stays selected; other apps' accessibility services are retained. If no stock Home can be verified, removal stops with an explanation. Then Plus removes only `io.konnecttv.glowlauncher`, installs the bundled APK and continues the requested setup. The original action may still need its separately disclosed notification/accessibility access. Boost explicitly selects Glowlauncher as Home as part of its own setup.
+
+Diagnostics and Detox history record the confirmed removal and replacement. The history entry is an audit and offers **Dismiss**, because deleted data cannot be restored. If installation fails after removal, the app says that the stock Home is kept and asks you to retry the original action. IconDump and APK installs are serialized; a fetch already running finishes first, and queued icon work resumes afterwards.
+
 
 ## Phone feedback and one-handed use
 

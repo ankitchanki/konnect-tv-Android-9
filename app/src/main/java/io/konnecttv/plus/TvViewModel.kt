@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.FileProvider
+import io.konnecttv.plus.companion.*
 import io.konnecttv.plus.diagnostics.DiagnosticLog
 import io.konnecttv.plus.data.TvIdentity
 import io.konnecttv.plus.data.parsePackageInventory
@@ -96,6 +97,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     // libadb streams are thread-safe, but connect/disconnect and history writes must not interleave.
     private val lock = Mutex()
     private val operationLock = Mutex()
+    val replacementConsent = ReplacementConsent()
 
     private val _conn = MutableStateFlow<Conn>(Conn.Off)
     val conn = _conn.asStateFlow()
@@ -319,7 +321,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
                 DiagnosticLog.record("INFO", "Operation", "$name completed")
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                DiagnosticLog.record("ERROR", "Operation", "$name failed", e)
+                DiagnosticLog.record(if(e is ReplacementCancelled) "INFO" else "ERROR", "Operation", "$name ${if(e is ReplacementCancelled) "cancelled" else "failed"}", e)
                 if (!a.isConnected) {
                     _conn.value = Conn.Off
                     say("Lost connection to the TV.")
@@ -371,7 +373,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     /** Fetches icons we haven't cached yet, in the background, without holding up the screen. */
     private fun loadIcons(a: Adb) = viewModelScope.launch(Dispatchers.IO) {
         // One fetch at a time, so two refreshes never push the helper over each other.
-        iconLock.withLock { runCatching { fetchIcons(a) }.onFailure { DiagnosticLog.record("WARN", "Icons", "App icon retrieval failed", it) } }
+        iconLock.withLock { if(a !== adb) return@withLock; runCatching { fetchIcons(a) }.onFailure { DiagnosticLog.record("WARN", "Icons", "App icon retrieval failed", it) } }
     }
     private val iconLock = Mutex()
 
@@ -531,11 +533,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         var state = runCatching { mediaCommand(a) }.getOrNull()
         if (state == null) {
             val existed = a.sh("pm path $LAUNCHER_PKG").startsWith("package:")
-            val apk = File(getApplication<Application>().cacheDir, "media-companion.apk")
-            try {
-                getApplication<Application>().assets.open("glowlauncher.apk").use { input -> apk.outputStream().use { input.copyTo(it) } }
-                apk.inputStream().use { a.install(it, apk.length()) }
-            } finally { apk.delete() }
+            installBundledCompanion(a)
             if (!existed) record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "TV media companion installed"))
             state = mediaCommand(a)
         }
@@ -649,10 +647,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     fun enableRemoteInput() = work("Enable TV touchpad and bubbles") { a ->
         val wasInstalled = a.sh("pm path $LAUNCHER_PKG").startsWith("package:")
-        val apk = File(getApplication<Application>().cacheDir,"glowlauncher.apk")
-        getApplication<Application>().assets.open("glowlauncher.apk").use { input -> apk.outputStream().use { input.copyTo(it) } }
-        val install = apk.inputStream().use { a.install(it,apk.length()) }
-        check(install.startsWith("Success")) { "TV companion install failed: $install" }
+        installBundledCompanion(a)
         if(!wasInstalled) record(Change(System.currentTimeMillis(),"install",LAUNCHER_PKG,"TV companion installed"))
         tweaks.value = readTweaks(a)
         val service = "$LAUNCHER_PKG/.RemoteInputService"
@@ -788,7 +783,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             // Some document providers don't report SIZE. Stage the actual bytes instead of guessing.
             resolver.openInputStream(uri)?.use { input -> file.outputStream().use { input.copyTo(it) } } ?: error("Can't read the selected APK.")
             say("Installing… Approve any installation prompt on the TV.")
-            file.inputStream().use { a.install(it, file.length()) }
+            iconLock.withLock { file.inputStream().use { a.install(it, file.length()) } }
             say("Installed.")
         } finally { file.delete() }
         apps.value = readApps(a)
@@ -817,16 +812,18 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     fun undo(change: Change) = work { a -> undoOne(a, change); apps.value = readApps(a); tweaks.value = readTweaks(a) }
 
     fun undoAll() = work { a ->
+        val hadReplacement = history.value.any { it.kind == "companionReplacement" }
         history.value.forEach { undoOne(a, it) }
         apps.value = readApps(a)
         tweaks.value = readTweaks(a)
-        say("Everything is back the way it was.")
+        say(if(hadReplacement) "Recorded changes undone. Replacing Glowlauncher removed its old data permanently; that data cannot be restored." else "Recorded changes undone.")
     }
 
     private suspend fun undoOne(a: Adb, change: Change) {
         when (change.kind) {
             "disable", "home" -> a.checked("pm enable --user 0 ${change.target}")
-            "install" -> a.checked("pm uninstall ${change.target}")
+            "install" -> { if(change.target == LAUNCHER_PKG && a.sh("pm path $LAUNCHER_PKG").startsWith("package:")) prepareCompanionRemoval(a); a.checked("pm uninstall ${change.target}") }
+            "companionReplacement" -> Unit // Audit only: removed app data cannot be restored.
             "mediaAccess" -> a.checked("cmd notification disallow_listener ${change.target} 0")
             "setting" -> {
                 val (ns, key) = change.target.split(':', limit = 2)
@@ -903,13 +900,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeWallpaper() { wallpaperDraft.value = null; wallpaperError.value = null }
 
-    private fun ensureWallpaperLauncher(a: Adb) {
+    private suspend fun ensureWallpaperLauncher(a: Adb) {
         if ("status=ready" in a.sh("content call --uri content://$LAUNCHER_PKG.wallpaper --method status")) return
-        // Update in place with the bundled APK; keep the existing apps, glow and wallpaper.
-        val file = File(getApplication<Application>().cacheDir, "glowlauncher.apk")
-        getApplication<Application>().assets.open("glowlauncher.apk").use { input -> file.outputStream().use { input.copyTo(it) } }
-        val result = file.inputStream().use { a.install(it, file.length()) }
-        check(result.startsWith("Success")) { "Couldn't update Glowlauncher: $result" }
+        installBundledCompanion(a)
         check("status=ready" in a.sh("content call --uri content://$LAUNCHER_PKG.wallpaper --method status")) { "The TV couldn't open the wallpaper inbox." }
     }
 
@@ -1011,11 +1004,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             // when memory is full. Clear background apps first so the switch has room.
             a.sh("am kill-all")
             setupStep(1)
-            val file = File(getApplication<Application>().cacheDir, "glowlauncher.apk")
             val alreadyInstalled = a.sh("pm path $LAUNCHER_PKG").startsWith("package:")
-            getApplication<Application>().assets.open("glowlauncher.apk").use { input -> file.outputStream().use { input.copyTo(it) } }
-            val result = file.inputStream().use { a.install(it, file.length()) }
-            if (!result.startsWith("Success")) error("Install failed: $result")
+            installBundledCompanion(a)
             if (!alreadyInstalled && history.value.none { it.kind == "install" && it.target == LAUNCHER_PKG }) {
                 record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "Glowlauncher installed"))
             }
@@ -1056,9 +1046,44 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun undoHomeService(a: Adb) =
         history.value.filter { it.kind == "setting" && it.target in HOME_SERVICE_SETTINGS }.forEach { undoOne(a, it) }
 
-    private suspend fun removeLauncher(a: Adb) {
+    private fun companionTransport(a: Adb) = object : CompanionTransport {
+        override fun shell(command: String) = if(command == "pm path $LAUNCHER_PKG") a.sh(command) else a.checked(command)
+        override fun copyApk(remotePath: String, destination: File) = a.copyRemoteApk(remotePath, destination)
+        override fun install(apk: File) { apk.inputStream().use { a.install(it, apk.length()) } }
+    }
+
+    private suspend fun prepareCompanionRemoval(a: Adb) {
         history.value.filter { it.kind == "home" }.forEach { undoOne(a, it) }
-        undoHomeService(a)
+        restoreStockHome(companionTransport(a))
+        // The current service list was filtered, preserving services added by other apps/phones.
+        history.value.filter { it.kind == "setting" && it.target in HOME_SERVICE_SETTINGS }.forEach { forgetChange(it) }
+    }
+
+    private suspend fun installBundledCompanion(a: Adb) {
+        val target = tv?.id ?: error("Not connected.")
+        var audit: Change? = null
+        CompanionInstaller(getApplication(), companionTransport(a), iconLock,
+            confirm = { conflict ->
+                val allowed = replacementConsent.request(conflict)
+                check(a === adb && tv?.id == target && a.isConnected) { "The TV changed or disconnected. Nothing was uninstalled." }
+                allowed
+            },
+            beforeRemoval = { prepareCompanionRemoval(a) },
+            removed = {
+                val change = Change(System.currentTimeMillis(), "companionReplacement", LAUNCHER_PKG,
+                    "Confirmed replacement: old Glowlauncher removed. Old wallpaper and home-app list cannot be restored.")
+                audit = change; record(change)
+            },
+            replaced = {
+                audit?.let { forgetChange(it); record(it.copy(label = "Glowlauncher replaced after confirmation. Old wallpaper and home-app list were removed permanently.")) }
+            },
+        ).install(tv?.name ?: "Connected TV")
+        // Queued icon work resumes only after the shared resource gate is released.
+        loadIcons(a)
+    }
+
+    private suspend fun removeLauncher(a: Adb) {
+        prepareCompanionRemoval(a)
         history.value.filter { it.kind == "install" && (it.target == LAUNCHER_PKG || it.target == OLD_LAUNCHER_PKG) }.forEach { undoOne(a, it) }
         if (a.sh("pm path $LAUNCHER_PKG").startsWith("package:")) a.checked("pm uninstall $LAUNCHER_PKG")
         tweaks.value = readTweaks(a)

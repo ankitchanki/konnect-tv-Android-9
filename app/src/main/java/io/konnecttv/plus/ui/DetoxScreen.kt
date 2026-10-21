@@ -178,7 +178,7 @@ fun DetoxScreen(vm: TvViewModel) {
                                 )
                                 Text(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(change.time)), style = Small)
                             }
-                            Text("Undo", style = Body.copy(color = C.Accent), modifier = Modifier.clip(CircleShape).clickable { vm.undo(change) }.padding(8.dp))
+                            Text(if(change.kind == "companionReplacement") "Dismiss" else "Undo", style = Body.copy(color = C.Accent), modifier = Modifier.clip(CircleShape).clickable { vm.undo(change) }.padding(8.dp))
                         }
                     }
                 }

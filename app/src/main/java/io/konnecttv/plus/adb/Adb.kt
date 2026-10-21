@@ -112,6 +112,22 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
         }
     }
 
+    /** Public APK bytes only. A byte bound/deadline prevents a failed cat from hanging inspection. */
+    fun copyRemoteApk(path: String, destination: File) {
+        require(path.startsWith("/") && path.endsWith(".apk") && !path.contains('\n') && !path.contains('\u0000'))
+        val quoted="'"+path.replace("'","'\\''")+"'"
+        val size=checked("stat -c %s $quoted",seconds=15).trim().toLongOrNull() ?: error("Could not read installed APK size.")
+        require(size in 1..(32L*1024*1024)) { "Installed APK exceeds the inspection size limit." }
+        timedStream("exec:cat $quoted",30) { stream ->
+            val input=stream.openInputStream()
+            destination.outputStream().use { out ->
+                val buffer=ByteArray(8192);var remaining=size
+                while(remaining>0) { val count=input.read(buffer,0,minOf(buffer.size.toLong(),remaining).toInt());check(count>0) { "Installed APK read was incomplete." };out.write(buffer,0,count);remaining-=count }
+            }
+        }
+        check(destination.length()==size)
+    }
+
     /** Streams an APK into `pm install`, no temp file on the TV. Returns pm's last line. */
     fun install(apk: InputStream, size: Long): String {
         require(size > 0) { "The APK is empty." }

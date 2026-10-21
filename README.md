@@ -8,7 +8,14 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 [Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md) · [UI design (SVG)](docs/design/README.md)
 
-## What's new in 2.3.1
+## What's new in 2.3.2
+
+- **Confirmed companion replacement:** setup reads the installed Glowlauncher's actual APK certificate before updating. A different signer, or Android's `INSTALL_FAILED_UPDATE_INCOMPATIBLE` response, opens **Replace older Glowlauncher?**. **Cancel** leaves it installed.
+- **Replace Glowlauncher** first restores and verifies an enabled stock Home if Glowlauncher owns Home, then removes only Glowlauncher, installs the bundled companion and continues the requested media, touchpad or Boost setup. If another Home is already selected, it stays selected. Replacement permanently removes the old Glowlauncher's wallpaper and home-app list; a history entry and diagnostics record the action. Missing/unconfirmed stock Home stops replacement before uninstall.
+- **Less installation contention:** IconDump and all APK installations share one resource gate. An in-flight icon fetch completes first; queued icon work resumes after installation, so the two never run together.
+- Phone **2.3.2 / code 9**; Glowlauncher stays **1.3.1 / code 5**, both Android 9+. This fix is based on a real TCL Android 9 diagnostics report; new-build validation uses emulators, with no physical-TV retest yet.
+
+### Previous fixes (2.3.1)
 
 - **Touchpad by default for new installs**, preserving an existing Remote style. The app row is **YouTube · JioHotstar · Cloudstream · Play/Pause · Menu**; phone Mic/dictation is removed. Type on TV, TV settings and Send TV message stay in Controls.
 - **Real TV app icons:** quick-launch keys use the selected installed package's IconDump icon; monograms are the fallback (YouTube retains its drawn play badge as a fallback).
@@ -106,7 +113,7 @@ Original UI images and animation are credited to [KonnectTV by yashoncode](https
 
 **Plus uses a new phone package, `io.konnecttv.plus`.** It installs separately from the older `io.konnecttv` companion. Saved TVs, authorization keys, history and preferences cannot migrate automatically across these package IDs: reconnect and approve Plus on each TV. Keep the older app until any changes you need its undo history for have been restored.
 
-The TV launcher's package remains **`io.konnecttv.glowlauncher`**, so a compatible signed update preserves its existing wallpaper and home settings. A launcher installed from another signing key can require uninstalling first; that deletes its local settings. Installation failures and signature mismatch advice appear in diagnostics.
+The TV launcher's package remains **`io.konnecttv.glowlauncher`**, so a compatible signed update preserves its existing wallpaper and home settings. A launcher installed from another signing key opens a **Replace older Glowlauncher?** confirmation during setup. **Cancel** keeps it; **Replace Glowlauncher** checks stock Home before removing the old launcher and continuing setup. Replacement deletes the old wallpaper and home-app list permanently. Diagnostics and Detox history record the action.
 
 If the TV has no network debugging switch but permits USB ADB, a computer can authorize it once and run `adb tcpip 5555`. Some firmware disables network ADB entirely. Plus cannot bypass that restriction. Use debugging on a trusted network and turn it off when finished. Samsung Tizen, LG webOS and Roku are not Android TV.
 
@@ -121,7 +128,7 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 | Phone identity | KonnectTV / `io.konnecttv` | Konnect TV Plus / `io.konnecttv.plus` |
 | Phone minimum | Android 12 / API 31 | Android 9 / API 28; solid surfaces on Android 9–11 |
 | TV launcher minimum | Android TV 5 / API 21 | Android TV 9 / API 28 |
-| Install launcher from phone | Bundled Glowlauncher | Retained in Boost |
+| Install launcher from phone | Bundled Glowlauncher | Boost plus certificate preflight and explicitly confirmed recovery for incompatible signing keys |
 | TV wallpaper | Glow colours and RGB | Phone photo picker, TV-ratio preview, crop/fit, pinch, drag, zoom and dimming |
 | Saved TVs | Saved connections | Editable names, tags, addresses/ports and **Use last IP** |
 | Remote layout | D-pad, volume keys, scrolling key rows | Equal keys around the media lines, one screen, no Vol −/+ keys |

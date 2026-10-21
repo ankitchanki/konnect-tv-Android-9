@@ -21,8 +21,8 @@ android {
         // Android 9+: older phones use solid floating surfaces instead of RenderEffect blur.
         minSdk = 28
         targetSdk = 36
-        versionCode = 8
-        versionName = "2.3.1"
+        versionCode = 9
+        versionName = "2.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Include x86_64 so the same build can be verified on Android 9 emulators.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
@@ -117,4 +117,26 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
+}
+
+// The incompatible signer fixture is confined to the test APK, never the shipped phone app.
+abstract class BundleForeignCompanion : DefaultTask() {
+    @get:InputDirectory abstract val apkDir: DirectoryProperty
+    @get:OutputDirectory abstract val outDir: DirectoryProperty
+    @TaskAction fun copy() {
+        val apk = apkDir.asFileTree.matching { include("*.apk") }.singleFile
+        val target = outDir.file("foreigncompanion-debug.apk").get().asFile
+        target.parentFile.mkdirs()
+        apk.copyTo(target, overwrite = true)
+    }
+}
+val bundleForeignCompanion = tasks.register<BundleForeignCompanion>("bundleForeignCompanion") {
+    dependsOn(":foreigncompanion:assembleDebug")
+    apkDir.set(rootProject.layout.projectDirectory.dir("foreigncompanion/build/outputs/apk/debug"))
+    outDir.set(layout.buildDirectory.dir("generated/foreignCompanionAssets"))
+}
+androidComponents {
+    onVariants { variant ->
+        variant.androidTest?.sources?.assets?.addGeneratedSourceDirectory(bundleForeignCompanion, BundleForeignCompanion::outDir)
+    }
 }

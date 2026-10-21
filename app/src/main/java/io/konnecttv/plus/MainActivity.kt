@@ -127,6 +127,7 @@ private fun Root(vm: TvViewModel) {
             scope.launch { pager.animateScrollToPage(it.ordinal) }
         }
         SheetOverlay(LocalSheetHost.current)
+        io.konnecttv.plus.ui.CompanionReplacementSheet(vm.replacementConsent)
 
         // Short status line, floating above everything.
         LaunchedEffect(message) { if (message != null) { delay(3_500); vm.message.value = null } }
