@@ -546,7 +546,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         remoteMediaError.value = null
         apps.value = readApps(a)
         tweaks.value = readTweaks(a)
-        say("Media sliders enabled. The TV's Home selection was kept.")
+        say("Media sliders enabled.")
     }
 
     fun disableMediaControls() = work("Disable TV media access") { a ->
@@ -655,7 +655,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         val next = withService(enabled,service).replace("'", "'\"'\"'")
         a.checked("settings put secure enabled_accessibility_services '$next'")
         a.checked("settings put secure accessibility_enabled 1")
-        repeat(12) { if(remoteControl(a,"status").optBoolean("available")) return@work say("TV touchpad and bubbles enabled. Home unchanged."); delay(250) }
+        repeat(12) { if(remoteControl(a,"status").optBoolean("available")) return@work say("TV touchpad and bubbles enabled."); delay(250) }
         error("Enable Konnect TV Plus touchpad in TV Accessibility settings and allow overlays in Glowlauncher Settings / phone privacy.")
     }
     fun disableRemoteInput() = work("Disable TV touchpad and bubbles") { a ->
