@@ -5,4 +5,3 @@ internal fun mediaPosition(position: Long, duration: Long, playing: Boolean, spe
     val advance = if (playing && speed.isFinite()) elapsed.coerceAtLeast(0).toDouble() * speed else 0.0
     return (position.toDouble() + advance).coerceIn(0.0, duration.toDouble()).toLong()
 }
-

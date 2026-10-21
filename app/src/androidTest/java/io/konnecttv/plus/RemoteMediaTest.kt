@@ -81,7 +81,7 @@ class RemoteMediaTest {
             }
         }
         compose.runOnIdle { assertEquals(0, enabled) }
-        compose.onNodeWithText("Enable media sliders").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Enable media sliders").assertIsDisplayed()
         screenshot("media-setup.png")
         compose.onNodeWithText("Enable media sliders").performClick()
         compose.runOnIdle { assertEquals(1, enabled) }
