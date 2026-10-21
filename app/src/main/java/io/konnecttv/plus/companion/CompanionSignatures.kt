@@ -17,6 +17,6 @@ fun homeComponents(output: String): List<String> = output.lineSequence().map { i
     .filter { it.matches(Regex("[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+")) }.toList()
 fun stockHomeComponent(current: String, candidates: String, systemPackages: String): String? {
     val system=systemPackages.lineSequence().map { it.trim().removePrefix("package:") }.toSet()
-    val homes=homeComponents(candidates).filter { it.substringBefore('/') in system && it.substringBefore('/') !in setOf(COMPANION_PACKAGE,"com.ansub.tvhome","android") }
+    val homes=homeComponents(candidates).filter { it.substringBefore('/') in system && it.substringBefore('/') !in setOf(COMPANION_PACKAGE,"com.ansub.tvhome","android") && "FallbackHome" !in it.substringAfter('/') }
     return homes.firstOrNull { it in homeComponents(current) } ?: homes.firstOrNull()
 }

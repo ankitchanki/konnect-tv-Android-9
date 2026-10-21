@@ -68,7 +68,11 @@ class CompanionReplacementTest {
         var replacements=0
         val installer=CompanionInstaller(context,transport,gate,{consent.request(it)},
             beforeRemoval={restoreStockHome(transport)},removed={removals++},replaced={replacements++})
-        assertNotEquals(installer.identity(foreign),installer.identity(bundled))
+        val foreignIdentity=installer.identity(foreign)
+        val bundledIdentity=installer.identity(bundled)
+        assertNotNull("Foreign APK signature must be readable on this Android version",foreignIdentity)
+        assertNotNull("Bundled APK signature must be readable on this Android version",bundledIdentity)
+        assertNotEquals(foreignIdentity,bundledIdentity)
         try {
             shell("pm uninstall $COMPANION_PACKAGE")
             transport.install(foreign)

@@ -111,6 +111,7 @@ dependencies {
     implementation(libs.libadb)
     implementation(libs.conscrypt.android)
     implementation(libs.bcpkix)
+    implementation("com.android.tools.build:apksig:8.2.2")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

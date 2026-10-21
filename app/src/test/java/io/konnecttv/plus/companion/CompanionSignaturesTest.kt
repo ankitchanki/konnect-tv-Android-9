@@ -27,6 +27,9 @@ class CompanionSignaturesTest {
         assertTrue(isSignatureInstallFailure("Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package signatures do not match]"))
         assertFalse(isSignatureInstallFailure("INSTALL_FAILED_INSUFFICIENT_STORAGE"))
     }
+    @Test fun settingsFallbackHomeIsNotAUsableStockLauncher() {
+        assertNull(stockHomeComponent("$COMPANION_PACKAGE/.HomeActivity", "com.android.settings/.FallbackHome", "package:com.android.settings"))
+    }
     @Test fun restoreChoosesOnlyAnEnabledSystemHome() {
         val homes="io.konnecttv.glowlauncher/.HomeActivity\norg.launcher.thirdparty/.Home\ncom.google.android.tvlauncher/.MainActivity"
         assertEquals("com.google.android.tvlauncher/.MainActivity",stockHomeComponent("io.konnecttv.glowlauncher/.HomeActivity",homes,"package:com.google.android.tvlauncher"))

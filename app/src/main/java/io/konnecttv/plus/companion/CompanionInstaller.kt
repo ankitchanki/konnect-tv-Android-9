@@ -1,7 +1,7 @@
 package io.konnecttv.plus.companion
 
 import android.content.Context
-import android.content.pm.PackageManager
+import com.android.apksig.ApkVerifier
 import io.konnecttv.plus.diagnostics.DiagnosticLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,14 +39,19 @@ class CompanionInstaller(
     private val replaced: suspend ()->Unit = {},
 ) {
     fun identity(apk: File): ApkIdentity? {
-        val info=context.packageManager.getPackageArchiveInfo(apk.path,PackageManager.GET_SIGNING_CERTIFICATES) ?: return null
-        if(info.packageName!=COMPANION_PACKAGE) return null
-        val signing=info.signingInfo ?: return null
+        // Read/verify APK signing blocks directly: Android archive parsing can return no signingInfo.
+        // Files come only from our bundled asset or `pm path` for the fixed companion package.
+        val result=ApkVerifier.Builder(apk).setMinCheckedPlatformVersion(28).build().verify()
+        if(!result.isVerified) {
+            DiagnosticLog.record("WARN","Companion","APK signature verification failed: ${result.errors}")
+            return null
+        }
         fun digest(bytes: ByteArray)=MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        val current=signing.apkContentsSigners.orEmpty().map { digest(it.toByteArray()) }.toSet()
-        val lineage=if(signing.hasMultipleSigners()) current else signing.signingCertificateHistory.orEmpty().map { digest(it.toByteArray()) }.toSet()+current
+        val current=result.signerCertificates.map { digest(it.encoded) }.toSet()
+        val lineage=result.signingCertificateLineage?.certificatesInLineage.orEmpty().map { digest(it.encoded) }.toSet()+current
         return ApkIdentity(current,lineage)
     }
+
     suspend fun install(tvName: String) = resourceGate.withLock {
         val bundled=File.createTempFile("glow-bundled-",".apk",context.cacheDir)
         val installed=File.createTempFile("glow-installed-",".apk",context.cacheDir)
