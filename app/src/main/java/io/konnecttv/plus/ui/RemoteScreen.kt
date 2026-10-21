@@ -2,8 +2,6 @@ package io.konnecttv.plus.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
-import io.konnecttv.plus.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,7 +43,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.testTag
@@ -58,6 +55,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.konnecttv.plus.RemotePreferences
+import io.konnecttv.plus.installedIn
 import io.konnecttv.plus.QuickApp
 import io.konnecttv.plus.TvViewModel
 import io.konnecttv.plus.adb.Key
@@ -68,7 +66,6 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
     val compact by RemotePreferences.oneHanded.collectAsStateWithLifecycle()
     val touchpad by RemotePreferences.touchpad.collectAsStateWithLifecycle()
     var controls by remember { mutableStateOf(false) }
-    var voice by remember { mutableStateOf(false) }
     var bubble by remember { mutableStateOf(false) }
     var typing by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
@@ -76,6 +73,9 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
     val media by vm.remoteMedia.collectAsStateWithLifecycle()
     val mediaError by vm.remoteMediaError.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val apps by vm.apps.collectAsStateWithLifecycle()
+    val icons by vm.icons.collectAsStateWithLifecycle()
+    val installed = apps.filter { it.installed }.joinToString("\n") { "package:${it.pkg}" }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(tv.id, lifecycle, active) {
         if (!active) return@LaunchedEffect
@@ -95,15 +95,19 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
             if(touchpad) RemoteTouchpad(vm,compact) else DPad(::press,compact)
             KeyRow {
-                RemoteKey("YouTube", Modifier.weight(1f), { YouTubeMark() }) { vm.launch(QuickApp.YouTube) }
-                RemoteKey("JioHotstar", Modifier.weight(1f), { Image(painterResource(R.drawable.jiohotstar),"JioHotstar icon",Modifier.size(24.dp)) }) { vm.launch(QuickApp.Hotstar) }
-                RemoteKey("Cloudstream", Modifier.weight(1f), { Image(painterResource(R.drawable.cloudstream),"Cloudstream icon",Modifier.size(24.dp)) }) { vm.launch(QuickApp.Cloudstream) }
+                listOf(QuickApp.YouTube,QuickApp.Hotstar,QuickApp.Cloudstream).forEach { app ->
+                    val pkg=app.installedIn(installed)
+                    val icon=icons[pkg]
+                    RemoteKey(app.label,Modifier.weight(1f), {
+                        if(app==QuickApp.YouTube && icon==null) YouTubeMark() else AppIcon(app.label,icon,24.dp)
+                    }) { vm.launch(app) }
+                }
                 RemoteKey("Play/Pause", Modifier.weight(1f), { Glyph(Glyphs.PlayPause) }) { press(Key.PLAY_PAUSE) }
-                RemoteKey("Mic", Modifier.weight(1f), { MicMark() }) { voice=true }
+                RemoteKey("Menu", Modifier.weight(1f), { Glyph(Glyphs.Menu) }) { press(Key.MENU) }
             }
             // The keys used most while watching sit right under the seek and volume lines, with almost no gap.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
+                RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() }, media?.playback?.appPackage?.let { pkg -> apps.firstOrNull { it.pkg==pkg }?.label?.takeUnless { it==pkg || it.isBlank() } ?: QuickApp.entries.firstOrNull { pkg in it.packages }?.label })
                 KeyRow(Modifier.testTag("remote-bottom-keys")) {
                     RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
                     RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
@@ -115,7 +119,6 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
             // Match the floating tabs plus the actual navigation inset (48dp on some Android 9 devices).
             Spacer(Modifier.navigationBarsPadding().height(88.dp))
         }
-        VoiceInputSheet(vm,voice) { voice=false }
         GlassSheet(controls,onDismiss={controls=false}) {
             Text("Remote controls",style=Body)
             SecondaryButton(if(touchpad) "Use directional pad" else "Use touchpad") { RemotePreferences.set("touchpad",!touchpad) }
@@ -254,12 +257,4 @@ private fun YouTubeMark() = Canvas(Modifier.size(28.dp, 20.dp)) {
         moveTo(size.width * .4f, size.height * .27f); lineTo(size.width * .66f, size.height * .5f); lineTo(size.width * .4f, size.height * .73f); close()
     }
     drawPath(p, Color.White)
-}
-
-@Composable
-private fun MicMark() = Canvas(Modifier.size(24.dp)) {
-    val stroke=2.dp.toPx()
-    drawRoundRect(C.Muted,Offset(8.dp.toPx(),2.dp.toPx()),Size(8.dp.toPx(),12.dp.toPx()),CornerRadius(4.dp.toPx()),style=Stroke(stroke))
-    drawArc(C.Muted,0f,180f,false,Offset(5.dp.toPx(),7.dp.toPx()),Size(14.dp.toPx(),12.dp.toPx()),style=Stroke(stroke))
-    drawLine(C.Muted,Offset(12.dp.toPx(),19.dp.toPx()),Offset(12.dp.toPx(),23.dp.toPx()),stroke)
 }

@@ -44,6 +44,8 @@ fun SettingsScreen(vm: TvViewModel, onBack: (() -> Unit)? = null) {
     val busy by vm.busy.collectAsStateWithLifecycle()
     var access by remember { mutableStateOf(false) }
     val importSetup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::previewSetup) }
+    var bubbles by rememberSaveable { mutableStateOf(false) }
+    if(bubbles) { BubbleSettingsScreen(vm) { bubbles=false };return }
     var logs by rememberSaveable { mutableStateOf(false) }
     if (logs) {
         BackHandler { logs = false }
@@ -62,6 +64,7 @@ fun SettingsScreen(vm: TvViewModel, onBack: (() -> Unit)? = null) {
             Text("Compact 220dp pad sits lower, with extra controls in the bottom sheet.",style=Small)
             Row { Text("Touchpad instead of D-pad",style=Body,modifier=Modifier.weight(1f));Toggle(touchpad) { RemotePreferences.set("touchpad",it) } }
         } }
+        item { PrimaryButton("TV message bubbles",enabled=connected is Conn.On) { bubbles=true } }
         item { Card {
             Text("TV cursor, dimming and message bubbles",style=Body)
             Text("Optional TV accessibility access can tap the screen and draw overlays across apps. No screen content is read. TV Home stays unchanged. Left edge adjusts screen dimming, not panel backlight; right edge adjusts exposed TV volume. Apps/firmware may ignore pointer taps or block overlays.",style=Small)

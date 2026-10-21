@@ -107,12 +107,11 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     val message = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val identity = MutableStateFlow<TvIdentity?>(null)
+    private val pendingBubbleIds = mutableSetOf<Long>()
     private var remoteInputChecked = false
     val remoteInputAvailable = MutableStateFlow(false)
     val screenBrightness = MutableStateFlow(100)
-    private data class PointerMove(val tvId: String, val dx: Int, val dy: Int)
-    private val pointerDeltaLock = Any()
-    private var pendingPointer: PointerMove? = null
+    private val pendingPointer = PendingPointer()
     private val pointerMoves = Channel<Unit>(Channel.CONFLATED)
 
     val found: StateFlow<List<FoundTv>> = discoverTvs(app)
@@ -124,16 +123,18 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch(Dispatchers.IO) {
             for (signal in pointerMoves) {
-                val move = synchronized(pointerDeltaLock) { pendingPointer.also { pendingPointer=null } } ?: continue
-                val a = adb ?: continue
-                if (tv?.id != move.tvId || !operationLock.tryLock()) continue
-                try {
-                    if (a === adb && tv?.id == move.tvId) remoteControl(a,"move",JSONObject().put("dx",move.dx).put("dy",move.dy))
-                } catch (e: Exception) {
-                    if(e is CancellationException) throw e
-                    remoteInputAvailable.value = false
-                    DiagnosticLog.record("WARN","Touchpad","Pointer unavailable; use directional mode",e)
-                } finally { operationLock.unlock() }
+                while(true) {
+                    if(!operationLock.tryLock()) { delay(40);continue }
+                    try {
+                        val move=pendingPointer.tryTake(true) ?: break
+                        val a=adb ?: continue
+                        if(tv?.id==move.tvId) remoteControl(a,"move",JSONObject().put("dx",move.dx).put("dy",move.dy))
+                    } catch(e: Exception) {
+                        if(e is CancellationException) throw e
+                        remoteInputAvailable.value=false
+                        DiagnosticLog.record("WARN","Touchpad","Pointer unavailable; use directional mode",e)
+                    } finally { operationLock.unlock() }
+                }
             }
         }
         // Reconnect to the last TV quietly; the connect screen stays up if it isn't there.
@@ -182,6 +183,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             remoteMedia.value = null
             remoteInputAvailable.value = false
             remoteInputChecked = false
+            pendingPointer.clear()
+            pendingBubbleIds.clear()
+            bubbleConfig.value=null; bubbleApps.value=emptyList();bubbleSettingsError.value=null
             screenBrightness.value = 100
             remoteMediaError.value = null
             homeChoices.value = null
@@ -271,6 +275,9 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             wallpaperDraft.value = null
             remoteInputAvailable.value = false
             remoteInputChecked = false
+            pendingPointer.clear()
+            pendingBubbleIds.clear()
+            bubbleConfig.value=null; bubbleApps.value=emptyList();bubbleSettingsError.value=null
             screenBrightness.value = 100
             remoteMedia.value = null
             remoteMediaError.value = null
@@ -562,7 +569,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             if (a !== adb || tv?.id != id) return@launch
             val value = withContext(Dispatchers.IO) {
                 val media = mediaCommand(a)
-                if(!remoteInputChecked) {
+                if(!remoteInputChecked || pendingBubbleIds.isNotEmpty()) {
                     try { remoteControl(a,"status") }
                     catch(e: Exception) { if(e is CancellationException) throw e; remoteInputAvailable.value=false }
                     remoteInputChecked=true
@@ -608,27 +615,35 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         val raw = a.checked("content call --uri content://io.konnecttv.glowlauncher.remote --method $method --arg $encoded",seconds=5)
         val payload = Regex("PLUS_REMOTE=([A-Za-z0-9+/=]+)").find(raw)?.groupValues?.get(1) ?: error("Update TV companion and enable TV touchpad/bubbles in Settings.")
         val result = JSONObject(String(Base64.decode(payload,Base64.NO_WRAP),Charsets.UTF_8))
-        check(result.optBoolean("ok") && (method=="status" || result.optBoolean("available"))) { "TV touchpad/bubbles unavailable. Check TV accessibility and Glowlauncher phone privacy settings." }
-        remoteInputAvailable.value = result.optBoolean("available")
-        screenBrightness.value = result.optInt("brightness",100)
+        check(result.optBoolean("ok")) { result.optString("error","TV remote request failed.") }
+        if(method !in setOf("bubbleConfig","setBubbleConfig")) {
+            check(method=="status" || result.optBoolean("available")) { "TV touchpad/bubbles unavailable. Check TV accessibility and Glowlauncher phone privacy settings." }
+            remoteInputAvailable.value=result.optBoolean("available")
+            screenBrightness.value=result.optInt("brightness",100)
+            val events=result.optJSONArray("messages")
+            if(events!=null) for(i in 0 until events.length()) {
+                val event=events.getJSONObject(i);val id=event.getLong("id")
+                if(id in pendingBubbleIds && event.getString("state") in setOf("blocked","finished")) {
+                    pendingBubbleIds.remove(id)
+                    if(event.getString("state")=="blocked") say(event.getString("reason"))
+                }
+            }
+        }
         return result
     }
 
     fun movePointer(dx: Int, dy: Int) {
         val id=tv?.id ?: return
-        synchronized(pointerDeltaLock) {
-            val old=pendingPointer?.takeIf { it.tvId==id }
-            pendingPointer=PointerMove(id,((old?.dx ?: 0)+dx).coerceIn(-250,250),((old?.dy ?: 0)+dy).coerceIn(-250,250))
-        }
+        pendingPointer.add(id,dx,dy)
         pointerMoves.trySend(Unit)
     }
     fun pointerClick() = work("TV cursor tap") { a -> remoteControl(a,"click"); RemotePreferences.feedback() }
     fun setScreenBrightness(value: Int) = work("TV screen dimming") { a -> remoteControl(a,"dim",JSONObject().put("value",value.coerceIn(20,100))); RemotePreferences.feedback() }
     fun sendTvMessage(text: String) = work("Send TV bubble (content omitted)") { a ->
         require(text.isNotBlank() && text.length <= 240) { "Use 1–240 characters." }
-        remoteControl(a,"message",JSONObject().put("text",text.trim()))
-        // Message content never enters the status toast, history or diagnostics.
-        say("Temporary bubble sent to the TV.")
+        val result=remoteControl(a,"message",JSONObject().put("text",text.trim()))
+        pendingBubbleIds.add(result.getLong("messageId"))
+        say(if(result.optString("delivery")=="queued") "Message queued on TV." else "Message shown on TV.")
     }
     fun refreshRemoteInput() = work("Check TV touchpad access") { a -> remoteControl(a,"status") }
 
@@ -654,6 +669,24 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         a.checked("settings put secure enabled_accessibility_services '$next'")
         remoteInputAvailable.value = false; screenBrightness.value = 100
         say("TV touchpad access revoked. Other accessibility services kept.")
+    }
+
+    val bubbleConfig = MutableStateFlow<BubbleConfig?>(null)
+    val bubbleApps = MutableStateFlow<List<TvApp>>(emptyList())
+    val bubbleSettingsError = MutableStateFlow<String?>(null)
+    private fun acceptBubbleConfig(result: JSONObject) {
+        val data=result.getJSONObject("config");val packages=data.getJSONArray("packages")
+        bubbleConfig.value=BubbleConfig(data.getBoolean("enabled"),BubbleScope.valueOf(data.getString("scope")),(0 until packages.length()).map { packages.getString(it) }.toSet())
+        val list=result.getJSONArray("apps")
+        bubbleApps.value=(0 until list.length()).map { val app=list.getJSONObject(it);TvApp(app.getString("package"),app.getString("label"),false,false) }
+        bubbleSettingsError.value=null
+    }
+    fun loadBubbleConfig() = work("Read TV message settings",onFailure={bubbleSettingsError.value=it}) { a ->
+        bubbleConfig.value=null;acceptBubbleConfig(remoteControl(a,"bubbleConfig"))
+    }
+    fun saveBubbleConfig(config: BubbleConfig) = work("Save TV message settings",onFailure={bubbleSettingsError.value=it}) { a ->
+        acceptBubbleConfig(remoteControl(a,"setBubbleConfig",JSONObject().put("enabled",config.enabled).put("scope",config.scope.name).put("packages",org.json.JSONArray(config.packages.sorted()))))
+        say("TV message settings saved for every phone.")
     }
 
     val setupImport = MutableStateFlow<SetupTransfer?>(null)

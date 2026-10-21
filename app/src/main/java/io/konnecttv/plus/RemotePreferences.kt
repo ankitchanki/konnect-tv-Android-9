@@ -12,13 +12,13 @@ object RemotePreferences {
     private lateinit var app: Context
     val haptics = MutableStateFlow(true)
     val oneHanded = MutableStateFlow(false)
-    val touchpad = MutableStateFlow(false)
+    val touchpad = MutableStateFlow(true)
     fun init(context: Context) {
         app = context.applicationContext
         val p = app.getSharedPreferences("remote", Context.MODE_PRIVATE)
         haptics.value = p.getBoolean("haptics", true)
         oneHanded.value = p.getBoolean("oneHanded", false)
-        touchpad.value = p.getBoolean("touchpad", false)
+        touchpad.value = p.getBoolean("touchpad", true)
     }
     fun set(key: String, value: Boolean) {
         when(key) { "haptics" -> haptics.value = value; "oneHanded" -> oneHanded.value = value; "touchpad" -> touchpad.value = value; else -> error("Unknown preference") }

@@ -62,6 +62,20 @@ class RemoteInputTest {
             assertFalse(RemotePreferences.haptics.value)
         } finally { RemotePreferences.set("haptics",previous) }
     }
+    @Test fun touchpadDefaultsOnButExistingChoiceSurvives() {
+        val context=ApplicationProvider.getApplicationContext<Context>()
+        val prefs=context.getSharedPreferences("remote",Context.MODE_PRIVATE)
+        val present=prefs.contains("touchpad");val old=prefs.getBoolean("touchpad",true)
+        try {
+            prefs.edit().remove("touchpad").commit();RemotePreferences.init(context)
+            assertTrue(RemotePreferences.touchpad.value)
+            RemotePreferences.set("touchpad",false);RemotePreferences.init(context)
+            assertFalse(RemotePreferences.touchpad.value)
+        } finally {
+            if(present) prefs.edit().putBoolean("touchpad",old).commit() else prefs.edit().remove("touchpad").commit()
+            RemotePreferences.init(context)
+        }
+    }
     @Test fun touchpadAndCompactModeKeepAnOkButtonAndCurrentShortcuts() {
         RemotePreferences.set("oneHanded",true);RemotePreferences.set("touchpad",true)
         try {
@@ -77,7 +91,8 @@ class RemoteInputTest {
             compose.onNodeWithText("OK").assertIsDisplayed()
             compose.onNodeWithText("Cloudstream").performScrollTo().assertIsDisplayed()
             compose.onNodeWithText("JioHotstar").assertIsDisplayed()
-            compose.onNodeWithText("Mic").assertIsDisplayed()
+            compose.onNodeWithText("Menu").assertIsDisplayed()
+            compose.onNodeWithText("Mic").assertDoesNotExist()
             screenshot("touchpad.png")
             compose.onNodeWithText("Controls").performScrollTo().performClick()
             compose.onNodeWithText("One-handed mode: on").assertExists()
@@ -85,8 +100,10 @@ class RemoteInputTest {
     }
     @Test fun tvRemoteProviderRejectsOtherAppUids() {
         val context=ApplicationProvider.getApplicationContext<Context>()
-        try { context.contentResolver.call(android.net.Uri.parse("content://io.konnecttv.glowlauncher.remote"),"status",null,null);fail("Other app read TV input state") }
-        catch(expected:SecurityException) { assertTrue(expected.message.orEmpty().contains("ADB shell")) }
+        for(method in listOf("status","bubbleConfig","setBubbleConfig")) {
+            try { context.contentResolver.call(android.net.Uri.parse("content://io.konnecttv.glowlauncher.remote"),method,null,null);fail("Other app accessed $method") }
+            catch(expected:SecurityException) { assertTrue(expected.message.orEmpty().contains("ADB shell")) }
+        }
     }
     @Test fun tvInputServiceMovesCursorDimsAndExpiresBubbleWithoutSavingMessage() {
         val key="enabled_accessibility_services"
@@ -110,6 +127,68 @@ class RemoteInputTest {
             assertEquals(100,remote("dim",JSONObject().put("value",100)).getInt("brightness"))
             assertFalse(remote("hide").getBoolean("cursorVisible"))
         } finally {
+            remote("dim",JSONObject().put("value",100));remote("hide")
+            if(previous=="null" || previous.isBlank()) shell("settings delete secure $key") else shell("settings put secure $key $previous")
+            if(globallyEnabled=="null") shell("settings delete secure accessibility_enabled") else shell("settings put secure accessibility_enabled $globallyEnabled")
+        }
+    }
+    @Test fun tvBubbleConfigPersistsBlocksWithReasonAndQueuesMessages() = withTvInput {
+        val saved=remote("bubbleConfig").getJSONObject("config")
+        try {
+            fun config(enabled:Boolean,scope:String="ANY",packages:List<String> = emptyList()) =
+                remote("setBubbleConfig",JSONObject().put("enabled",enabled).put("scope",scope).put("packages",org.json.JSONArray(packages)))
+            config(false)
+            assertFalse(remote("bubbleConfig").getJSONObject("config").getBoolean("enabled"))
+            val blocked=remote("message",JSONObject().put("text","private test message"))
+            assertFalse(blocked.getBoolean("ok"));assertTrue(blocked.getString("error").contains("Show messages on TV is off"))
+            assertFalse(blocked.toString().contains("private test message"))
+            config(true,"HOME")
+            shell("am start -W -a android.settings.SETTINGS")
+            val foregroundDeadline=SystemClock.elapsedRealtime()+5000
+            while(remote("status").optString("foregroundPackage").isBlank() && SystemClock.elapsedRealtime()<foregroundDeadline) SystemClock.sleep(100)
+            val ruleBlocked=remote("message",JSONObject().put("text","blocked by home rule"))
+            assertFalse(ruleBlocked.getBoolean("ok"));assertTrue(ruleBlocked.getString("error").contains("blocked in TV message settings"))
+            config(true)
+            val first=remote("message",JSONObject().put("text","First queued message"));val firstId=first.getLong("messageId")
+            val second=remote("message",JSONObject().put("text","Second queued message"));val secondId=second.getLong("messageId")
+            assertEquals(firstId,second.getLong("currentMessageId"));assertEquals(1,second.getInt("queuedMessages"))
+            val nextDeadline=SystemClock.elapsedRealtime()+10000
+            while(remote("status").optLong("currentMessageId")!=secondId && SystemClock.elapsedRealtime()<nextDeadline) SystemClock.sleep(200)
+            val status=remote("status")
+            assertEquals(secondId,status.getLong("currentMessageId"))
+            assertFalse(status.toString().contains("First queued message"))
+            // Settings live on the TV even after the input service is disconnected/reconnected.
+            config(true,"SELECTED",listOf(TV_HOME_PACKAGE))
+            assertEquals("SELECTED",remote("bubbleConfig").getJSONObject("config").getString("scope"))
+            assertEquals(TV_HOME_PACKAGE,remote("bubbleConfig").getJSONObject("config").getJSONArray("packages").getString(0))
+        } finally {
+            remote("setBubbleConfig",saved)
+            shell("am start -W -n io.konnecttv.plus/.MainActivity")
+        }
+    }
+    @Test fun screenOffClearsDimmingAndWakeDoesNotRestoreIt() = withTvInput {
+        try {
+            assertEquals(50,remote("dim",JSONObject().put("value",50)).getInt("brightness"))
+            shell("input keyevent 223")
+            val deadline=SystemClock.elapsedRealtime()+5000
+            while(remote("status").optInt("brightness")!=100 && SystemClock.elapsedRealtime()<deadline) SystemClock.sleep(100)
+            assertEquals(100,remote("status").getInt("brightness"))
+        } finally { shell("input keyevent 224");shell("wm dismiss-keyguard") }
+        assertEquals(100,remote("status").getInt("brightness"))
+    }
+    private fun withTvInput(test:()->Unit) {
+        val key="enabled_accessibility_services"
+        val previous=shell("settings get secure $key")
+        val globallyEnabled=shell("settings get secure accessibility_enabled")
+        shell("input keyevent 224");shell("wm dismiss-keyguard")
+        shell("settings put secure $key ${withService(previous,"io.konnecttv.glowlauncher/.RemoteInputService")}")
+        shell("settings put secure accessibility_enabled 1")
+        try {
+            val deadline=SystemClock.elapsedRealtime()+8000
+            while(!remote("status").optBoolean("available") && SystemClock.elapsedRealtime()<deadline) SystemClock.sleep(200)
+            assertTrue(remote("status").getBoolean("available"));test()
+        } finally {
+            shell("input keyevent 224");shell("wm dismiss-keyguard")
             remote("dim",JSONObject().put("value",100));remote("hide")
             if(previous=="null" || previous.isBlank()) shell("settings delete secure $key") else shell("settings put secure $key $previous")
             if(globallyEnabled=="null") shell("settings delete secure accessibility_enabled") else shell("settings put secure accessibility_enabled $globallyEnabled")

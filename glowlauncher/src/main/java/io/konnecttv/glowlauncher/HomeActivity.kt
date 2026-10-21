@@ -460,9 +460,11 @@ class HomeActivity : Activity() {
         val prefs = getSharedPreferences("remote_privacy",0)
         val overlays = prefs.getBoolean("overlays",true)
         val playback = prefs.getBoolean("sharePlayback",true)
-        panel("Settings and phone privacy",listOf("Android TV settings", "Phone cursor / bubbles: ${if(overlays) "allowed" else "blocked"}",
+        val undoDimming=RemoteInputService.active?.isDimmed==true
+        panel("Settings and phone privacy",(if(undoDimming) listOf("Undo screen dimming") else emptyList()) + listOf("Android TV settings", "Phone cursor / bubbles: ${if(overlays) "allowed" else "blocked"}",
             "Share playback title: ${if(playback) "allowed" else "blocked"}","Manage TV accessibility"),null) { which ->
-            when(which) {
+            if(undoDimming && which==0) { RemoteInputService.active?.clearDimming();return@panel }
+            when(which-if(undoDimming) 1 else 0) {
                 0 -> start(Intent(Settings.ACTION_SETTINGS))
                 1 -> { prefs.edit().putBoolean("overlays",!overlays).apply();RemoteInputService.active?.resetOverlays() }
                 2 -> prefs.edit().putBoolean("sharePlayback",!playback).apply()

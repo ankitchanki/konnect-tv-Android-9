@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import io.konnecttv.plus.VolumeKeyStrip
 import io.konnecttv.plus.RemotePreferences
 import io.konnecttv.plus.TvViewModel
 import io.konnecttv.plus.adb.Key
@@ -37,17 +38,21 @@ fun RemoteTouchpad(vm: TvViewModel, compact: Boolean) {
             }
             Box(Modifier.fillMaxWidth().weight(1f).pointerInput(pointer,ready,volume?.volume,brightness) {
                 var zone=0; var dx=0f;var dy=0f;var last=0L
-                detectDragGestures(onDragStart={ start -> zone=if(start.x < size.width*.18f) 1 else if(start.x > size.width*.82f) 2 else 0; dx=0f;dy=0f },
+                var keyStrip=VolumeKeyStrip()
+                detectDragGestures(onDragStart={ start -> zone=if(start.x < size.width*.18f) 1 else if(start.x > size.width*.82f) 2 else 0; dx=0f;dy=0f;keyStrip=VolumeKeyStrip() },
                     onDragEnd={
                         if(zone==0 && pointer && ready && (dx!=0f || dy!=0f)) vm.movePointer((dx*2).roundToInt(),(dy*2).roundToInt())
                         if(zone==1) { if(ready) vm.setScreenBrightness((brightness-dy/size.height*100).roundToInt()) else vm.say("Enable TV touchpad access for screen dimming.") }
-                        if(zone==2) { val v=volume?.volume; if(v?.supported==true) vm.setTvVolume((v.index-dy/size.height*(v.max-v.min)).roundToInt()) else vm.say("TV volume unavailable; enable media sliders first.") }
+                        if(zone==2) { val v=volume?.volume; if(v?.supported==true) vm.setTvVolume((v.index-dy/size.height*(v.max-v.min)).roundToInt()) }
                         hint="Swipe to navigate · centre OK"
                     },onDragCancel={hint="Swipe to navigate · centre OK"}) { change,amount ->
                     change.consume(); dx+=amount.x;dy+=amount.y
                     when(zone) {
                         1 -> hint="Screen brightness ${(brightness-dy/size.height*100).roundToInt().coerceIn(20,100)}%"
-                        2 -> hint="Volume ${((volume?.volume?.percent ?: 0)-dy/size.height*100).roundToInt().coerceIn(0,100)}%"
+                        2 -> {
+                            if(volume?.volume?.supported==true) hint="Volume ${((volume?.volume?.percent ?: 0)-dy/size.height*100).roundToInt().coerceIn(0,100)}%"
+                            else { hint="TV volume keys";keyStrip.travel(amount.y / density).forEach { vm.key(it);RemotePreferences.feedback() } }
+                        }
                         else -> {
                             val now=android.os.SystemClock.elapsedRealtime()
                             if(pointer && ready && now-last>=70) { vm.movePointer((dx*2).roundToInt(),(dy*2).roundToInt());dx=0f;dy=0f;last=now }

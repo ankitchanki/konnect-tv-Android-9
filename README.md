@@ -8,16 +8,16 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 [Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md) · [UI design (SVG)](docs/design/README.md)
 
-## What's new in 2.3.0
+## What's new in 2.3.1
 
-- **Phone haptics on/off:** pairing/connection success, buttons and completed seek/volume changes.
-- **Touchpad + centre OK:** directional swipes; optional visible TV cursor through a separately enabled accessibility service. Left edge adjusts screen dimming; right edge adjusts supported media volume.
-- **One-handed mode:** compact lower pad and a bottom Controls sheet.
-- **YouTube · JioHotstar · Cloudstream:** three quick-launch shortcuts, current JioHotstar artwork and upstream Cloudstream icon. Mic offers phone dictation, review and TV text entry.
-- **Temporary TV bubbles and viewer privacy:** send a short message; TV viewers can block overlays or playback-title sharing in Glowlauncher Settings. Glowlauncher is now **1.3.0**, still Android TV 9+.
-- **Family setup sharing:** export/import saved TV hints and Remote preferences using Android sharing. Each new phone must still authorize/pair with the TV; ADB keys are never copied.
+- **Touchpad by default for new installs**, preserving an existing Remote style. The app row is **YouTube · JioHotstar · Cloudstream · Play/Pause · Menu**; phone Mic/dictation is removed. Type on TV, TV settings and Send TV message stay in Controls.
+- **Real TV app icons:** quick-launch keys use the selected installed package's IconDump icon; monograms are the fallback (YouTube retains its drawn play badge as a fallback).
+- **Volume-strip fallback:** if absolute media volume is unavailable, right-edge swipes send Volume Up/Down keys every ~24dp with haptic ticks. Busy TV operations retain pending cursor motion.
+- **Dimming recovery:** screen-off, screensaver start and service reconnect clear dimming. Glowlauncher Settings offers **Undo screen dimming** first while dimmed.
+- **TV message bubbles:** phone Settings edits TV-stored on/off and app rules, shared across phones. Choose any app, TV Home only, or selected launchable apps. Blocked messages report a reason. Bubbles queue with 250ms fades and density-scaled dimensions; TV owner overlay privacy stays the master switch.
+- Removed unused phone-state and external-storage permissions implied by libadb's old target SDK. Phone **2.3.1 / code 8**, Glowlauncher **1.3.1 / code 5**, both Android 9+.
 
-[Setup, limitations, TV privacy and mobile-data/VPN access](docs/REMOTE-AND-HOME-ACCESS.md) · [Icon sources](docs/APP-ICON-SOURCES.md)
+[Setup, bubble settings, TV privacy and mobile-data/VPN access](docs/REMOTE-AND-HOME-ACCESS.md)
 
 ### Previous Remote redesign (2.2.0)
 
@@ -37,7 +37,7 @@ These are real **Konnect TV Plus 2.3.0 on Android 9** emulator captures. The D-p
     <th>Remote · small screen, scrolled</th>
   </tr>
   <tr>
-    <td align="center"><a href=".github/assets/plus/remote-sliders.png"><img src=".github/assets/plus/remote-sliders.png" width="260" alt="Remote screenshot: D-pad, a row of YouTube, JioHotstar, Cloudstream, Play/Pause and Mic keys, the media card with seek and volume lines, then Home, Back, Controls, Mute and Off keys above the tab bar"></a></td>
+    <td align="center"><a href=".github/assets/plus/remote-sliders.png"><img src=".github/assets/plus/remote-sliders.png" width="260" alt="Remote screenshot: D-pad, a row of YouTube, JioHotstar, Cloudstream, Play/Pause and Menu keys, the media card with seek and volume lines, then Home, Back, Controls, Mute and Off keys above the tab bar"></a></td>
     <td align="center"><a href=".github/assets/plus/remote-buttons.png"><img src=".github/assets/plus/remote-buttons.png" width="260" alt="Actual Remote on a small 360 by 640dp viewport, scrolled to the media lines and bottom keys above the tab bar"></a></td>
   </tr>
   <tr>
@@ -45,8 +45,8 @@ These are real **Konnect TV Plus 2.3.0 on Android 9** emulator captures. The D-p
     <td>Small screens scroll while keeping the D-pad at least 220dp. Navigation-bar insets keep bottom keys clear of the tabs.</td>
   </tr>
   <tr><th colspan="2">Compact touchpad · one-handed mode</th></tr>
-  <tr><td colspan="2" align="center"><a href=".github/assets/plus/touchpad.png"><img src=".github/assets/plus/touchpad.png" width="260" alt="Actual compact touchpad with centre OK, Dim and Volume edge labels, three app shortcuts and Mic"></a></td></tr>
-  <tr><td colspan="2">Offline UI fixture with no tab bar: TV volume/playback are intentionally unavailable. Cursor, dimming and bubbles require explicit TV access. The phone mic supports reviewed dictation, not live assistant audio forwarding.</td></tr>
+  <tr><td colspan="2" align="center"><a href=".github/assets/plus/touchpad.png"><img src=".github/assets/plus/touchpad.png" width="260" alt="Actual compact touchpad with centre OK, Dim and Volume edge labels, three app shortcuts and Menu"></a></td></tr>
+  <tr><td colspan="2">Offline UI fixture with no tab bar: TV volume/playback are intentionally unavailable. Cursor, dimming and bubbles require explicit TV access. Phone dictation has been removed; Type on TV remains in Controls.</td></tr>
   <tr>
     <th>Saved TVs, names and tags</th>
     <th>TV wallpaper editor</th>
@@ -137,7 +137,7 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 
 ## Features
 
-- **Remote:** D-pad or touchpad with OK; YouTube/JioHotstar/Cloudstream, Play/Pause and Mic; Home, Back, Controls, Mute and Off under the media lines. The Controls bottom sheet contains Type, Menu, TV Settings and TV messages. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
+- **Remote:** D-pad or touchpad with OK; YouTube/JioHotstar/Cloudstream, Play/Pause and Menu; Home, Back, Controls, Mute and Off under the media lines. The Controls bottom sheet contains Type, Menu, TV Settings and TV messages. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
 - **Quick launch:** **YouTube**, **JioHotstar** and **Cloudstream** keys open a supported installed package in one tap.
 - **Apps:** Actual inventory including disabled apps, icons, state and reason. Open apps, install a phone-selected APK, manage reviewed optional apps or your own apps. Critical and unreviewed system apps are protected from destructive actions.
 - **Detox:** Automatically identifies manufacturer/model and matches the packages actually present. New vendor rules start unchecked. Read each reason before disabling; use **Already off** to enable an app disabled before Plus was installed.

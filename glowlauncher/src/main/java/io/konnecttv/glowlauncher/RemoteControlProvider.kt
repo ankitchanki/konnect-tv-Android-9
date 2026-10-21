@@ -20,14 +20,25 @@ class RemoteControlProvider : ContentProvider() {
     private fun authorize() { if(Binder.getCallingUid() !in listOf(0,2000,Process.myUid())) throw SecurityException("Authorized ADB shell only") }
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
         authorize()
-        require(method in setOf("status","move","click","dim","message","hide") && arg.orEmpty().length <= 2048)
+        require(method in setOf("status","move","click","dim","message","hide","bubbleConfig","setBubbleConfig") && arg.orEmpty().length <= 65536)
         val result = runCatching {
             val data = if(arg.isNullOrBlank()) JSONObject() else JSONObject(String(Base64.decode(arg,Base64.NO_WRAP),Charsets.UTF_8))
-            val task = FutureTask { RemoteInputService.active?.execute(method,data)
-                ?: if(method=="status") JSONObject().put("ok",true).put("available",false) else error("Enable TV touchpad and bubbles in phone Settings first.") }
+            val task = FutureTask {
+                val context=requireNotNull(context)
+                when(method) {
+                    "bubbleConfig" -> BubbleSettings.snapshot(context)
+                    "setBubbleConfig" -> { BubbleSettings.write(context,data);RemoteInputService.active?.recheckBubbles();BubbleSettings.snapshot(context) }
+                    else -> RemoteInputService.active?.execute(method,data)
+                        ?: if(method=="status") JSONObject().put("ok",true).put("available",false)
+                        else throw RemoteRequestException("Enable TV touchpad and bubbles in phone Settings first.")
+                }
+            }
             if(Looper.myLooper()==Looper.getMainLooper()) task.run() else Handler(Looper.getMainLooper()).post(task)
-            task.get(3,TimeUnit.SECONDS)
-        }.getOrElse { JSONObject().put("ok",false).put("error","Remote overlay unavailable; check TV accessibility access.") }
+            try { task.get(3,TimeUnit.SECONDS) } finally { if(!task.isDone) task.cancel(false) }
+        }.getOrElse {
+            val cause=if(it is java.util.concurrent.ExecutionException) it.cause else it
+            JSONObject().put("ok",false).put("error",if(cause is RemoteRequestException) cause.message else "TV remote request failed; check companion version, settings and accessibility access.")
+        }
         return Bundle().apply { putString("PLUS_REMOTE",Base64.encodeToString(result.toString().toByteArray(),Base64.NO_WRAP)) }
     }
     override fun getType(uri:Uri):String { authorize(); return "application/json" }
