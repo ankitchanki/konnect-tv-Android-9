@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.KonnectTV" parent="Theme.KonnectTV.Base">
+    <style name="Theme.KonnectTVPlus" parent="Theme.KonnectTVPlus.Base">
         <item name="android:windowSplashScreenBackground">@color/bg</item>
     </style>
 </resources>

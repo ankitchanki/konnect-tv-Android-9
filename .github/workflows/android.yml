@@ -26,7 +26,7 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest :app:lintDebug :glowlauncher:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest
       - uses: actions/upload-artifact@v4
         with:
-          name: KonnectTV-Android9-test-build
+          name: KonnectTVPlus-test-build
           path: |
             app/build/outputs/apk/debug/*.apk
             glowlauncher/build/outputs/apk/release/*.apk

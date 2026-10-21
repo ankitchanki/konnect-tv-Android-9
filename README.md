@@ -1,175 +1,111 @@
-<p align="center"><img src=".github/assets/icon.png" width="112" alt="KonnectTV logo"></p>
+<p align="center"><img src=".github/assets/icon.png" width="112" alt="Konnect TV Plus logo"></p>
 
-<h1 align="center">KonnectTV — Android 9+ Fork</h1>
+<h1 align="center">Konnect TV Plus</h1>
 
-This fork supports **Android 9+ phones and Android TV 9+**. It keeps the phone companion and bundles Glowlauncher for the TV. Download this fork's development-signed test builds from [Releases](https://github.com/ankitchanki/konnect-tv-Android-9/releases).
+**An Android 9+ phone companion for Android TV 9+: remote control, app management, a clean TV launcher, phone-selected wallpapers and local diagnostics.**
 
-<p align="center"><img src=".github/assets/poster.png" alt="KonnectTV: make your old TV feel new again"></p>
+This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnect-tv). Original app and Glowlauncher credit belongs to upstream. This fork adds Android 9 compatibility, wallpaper editing, named TV connections, diagnostics and reviewed package controls.
 
-**Make your old Android TV feel new again, from your phone.** Turn off the bloat, free up memory, swap the cluttered home screen for a clean glowing one, and control everything with a remote on your phone.
+[Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md)
 
-<p align="center"><img src=".github/assets/glowlauncher.gif" width="720" alt="Glowlauncher on a TV: a big clock and a dock of apps with a glow that fades through colours as focus moves"></p>
+## Install and connect
 
-<p align="center">
-  <img src=".github/assets/remote.jpg" width="180" alt="KonnectTV remote with d-pad and symbol buttons">
-  <img src=".github/assets/apps.jpg" width="180" alt="KonnectTV app manager with real app icons">
-  <img src=".github/assets/detox.jpg" width="180" alt="KonnectTV Detox list of apps safe to turn off">
-  <img src=".github/assets/boost.jpg" width="180" alt="KonnectTV Boost with RAM and storage rings and the Glowlauncher orb">
-</p>
+1. Install **KonnectTVPlus.apk on your phone**. The phone and TV both need Android 9 (API 28) or newer and must be reachable on the same local network.
+2. On the TV, enable Developer options and debugging. Android 11+ TVs with Wireless debugging use their pairing code and connection port. For Android TV 9–10, use the TV's network/ADB debugging option and normally port **5555**, then approve **Allow debugging** on the TV. USB debugging alone does not enable network ADB on every model.
+3. Pick a discovered TV or choose **Enter IP address manually**. Enter an optional name and tag, such as Living room / Home or Bedroom / Friend's TV. Successful connections are remembered.
+4. Open **Boost** to install and enable **Glowlauncher directly from the phone**. Its APK is bundled; a separate TV download is unnecessary. `Glowlauncher.apk` in Releases is available for manual TV installation.
 
-<p align="center"><a href="https://github.com/ankitchanki/konnect-tv-Android-9/releases"><b>⬇ Download the Android 9+ build</b></a></p>
+**Plus uses a new phone package, `io.konnecttv.plus`.** It installs separately from the older `io.konnecttv` companion. Saved TVs, authorization keys, history and preferences cannot migrate automatically across these package IDs: reconnect and approve Plus on each TV. Keep the older app until any changes you need its undo history for have been restored.
 
-## Why this fork?
+The TV launcher's package remains **`io.konnecttv.glowlauncher`**, so a compatible signed update preserves its existing wallpaper and home settings. A launcher installed from another signing key can require uninstalling first; that deletes its local settings. Installation failures and signature mismatch advice appear in diagnostics.
 
-The original project provides the phone remote, app management, Detox, Boost and Glowlauncher. This fork keeps that workflow, lowers the phone requirement to Android 9, and adds phone-controlled wallpapers and clearer controls for managing several saved TVs.
+If the TV has no network debugging switch but permits USB ADB, a computer can authorize it once and run `adb tcpip 5555`. Some firmware disables network ADB entirely. Plus cannot bypass that restriction. Use debugging on a trusted network and turn it off when finished. Samsung Tizen, LG webOS and Roku are not Android TV.
 
-Compared with the upstream source this fork started from (`9d46e4c`):
+Release APKs are **development-signed prereleases**. API 28 and API 36 emulator checks cover the tested paths; physical TCL and other manufacturer TV testing is still needed. The minimum supported version does not guarantee every firmware or future Android version.
 
-| Capability | Original KonnectTV | This fork |
+## What changed from the original?
+
+Comparison with the upstream source this fork started from (`9d46e4c`):
+
+| Capability | Original KonnectTV | Konnect TV Plus |
 |:--|:--|:--|
-| Phone app minimum | Android 12 (API 31) | Android 9 (API 28), with solid surfaces on Android 9–11 |
-| Standalone launcher minimum | Android TV 5 (API 21) | Android TV 9 (API 28); this fork focuses on Android 9+ devices |
-| Install launcher from phone | Bundled Glowlauncher via Boost | Retained; no separate TV download required |
-| Launcher background | Glow colours and RGB | Glow plus a photo selected on the phone |
-| Wallpaper framing | No phone wallpaper editor | TV-ratio preview, Fill/crop, Fit, pinch/drag, zoom, position and dimming controls |
-| Saved connections | Remembers TVs and reconnects | Retained, plus editable names, tags, saved IP/port and a **Use last IP** button |
-| Android 9 connection/setup | Phone app requires Android 12 | Legacy network ADB guidance, remote discovery and compatible Home selection |
-| Validation | Existing upstream checks | Added crop geometry, storage migration, UI and wallpaper-transfer regression tests |
-
-Android 9+ is the minimum supported version, not a guarantee for every manufacturer's firmware or future Android release. Debugging access and permission to replace the Home screen still depend on the TV. Physical TV testing remains necessary.
-
-## Real results
-
-Upstream measurements on a 1 GB Google TV (CHiQ, Android 14): Google TV's own home with apps left running, then Glowlauncher after Boost cleared background apps. Median of 3 cold starts each. These measurements have not been repeated for this fork or with photo wallpaper enabled.
-
-| | Before | After KonnectTV |
-|:--|--:|--:|
-| Netflix opens in | 1.72 s | **0.85 s** (2× faster) |
-| Prime Video opens in | 3.37 s | **1.87 s** (1.8× faster) |
-| Home screen memory | 80 MB | **21 MB** (4× lighter) |
-| Free memory | 255 MB | **308 MB** |
-
-Your TV will differ. The older and more cluttered it is, the bigger the gain. Raw output, method and the script to run it yourself: [docs/BENCHMARK.md](docs/BENCHMARK.md).
+| Phone identity | KonnectTV / `io.konnecttv` | Konnect TV Plus / `io.konnecttv.plus` |
+| Phone minimum | Android 12 / API 31 | Android 9 / API 28; solid surfaces on Android 9–11 |
+| TV launcher minimum | Android TV 5 / API 21 | Android TV 9 / API 28 |
+| Install launcher from phone | Bundled Glowlauncher | Retained in Boost |
+| TV wallpaper | Glow colours and RGB | Phone photo picker, TV-ratio preview, crop/fit, pinch, drag, zoom and dimming |
+| Saved TVs | Saved connections | Editable names, tags, addresses/ports and **Use last IP** |
+| Diagnostics | Status messages | Settings before connection, persistent rotating logs, filters, export/share and TV snapshots |
+| Package rules | Existing Detox rules | TCL and other OEM exact-package rules, source links, feature trade-offs and protected component reasons |
+| Existing disabled apps | Excluded from inventory | **Already off**, Enable and available system-app restoration, including changes made outside Plus |
+| Unknown system apps | Grouped with needed apps | Explicit **Not reviewed**, kept enabled |
+| Error handling | Some commands inferred success | Checked exit codes, full installation responses, timeout/error logs and state verification |
 
 ## Features
 
-- ✨ **Glowlauncher.** A calm home screen for your TV: a big clock and only the apps you pick, in one glowing dock. Choose the glow colour, or RGB to fade through all of them.
-- 🖼️ **Wallpapers from your phone.** Pick a photo, preview it at your TV's aspect ratio, crop or fit it, zoom and reposition, then apply it directly to Glowlauncher. Restore the glow background anytime.
-- 🧹 **Detox.** One tap turns off sponsored rows, screensavers and promo apps. Apps are turned off, never deleted, and every change can be undone.
-- ⚡ **Boost.** See free RAM and storage, turn off animations so menus open instantly, stop the screensaver, set a sleep timer and clear background apps.
-- 🎮 **Remote.** D-pad, OK, back, home, volume, mute, power and play/pause, with haptics on every tap. Type on the TV with your phone keyboard.
-- 📦 **App manager.** Every app on the TV with its real icon and name. Open, force stop, clear data, turn off or on, uninstall your own apps, and install an APK from your phone.
-- 📺 **Named saved TVs.** Finds Android TVs on your Wi-Fi and remembers successful connections. Add names and tags such as Living room or Friend's TV, edit saved addresses and reuse the last IP without typing.
-- 🌗 **Light and dark.** One tap on the top bar.
-- 🔒 **Private.** No account, no ads, no tracking. Everything stays on your phone and your TV.
+- **Remote:** D-pad, OK, back, home, volume, mute, power and playback; type on the TV using the phone keyboard.
+- **Apps:** Actual inventory including disabled apps, icons, state and reason. Open apps, install a phone-selected APK, manage reviewed optional apps or your own apps. Critical and unreviewed system apps are protected from destructive actions.
+- **Detox:** Automatically identifies manufacturer/model and matches the packages actually present. New vendor rules start unchecked. Read each reason before disabling; use **Already off** to enable an app disabled before Plus was installed.
+- **Boost:** RAM/storage information, animation controls, screensaver, sleep timer and background-app cleanup. Glowlauncher keeps the stock launcher installed and enabled; Home selection depends on TV permissions and firmware.
+- **Saved TVs:** One-tap reconnect; edit names, tags and addresses. **Use last IP · TV name** fills the manual connection form with the latest saved TV.
+- **Diagnostics:** Connection attempts, discovery errors, command exit codes, installation responses, wallpaper operations and phone crashes. Logs stay on the phone until you export/share.
+- **Light/dark appearance:** Android 9-compatible UI with blur on newer phones.
 
-## Install
+### Wallpapers from your phone
 
-This Android 9+ adaptation keeps KonnectTV as a **phone companion** for Android TV and Google TV running Android 9 or newer. The phone also needs Android 9 (API 28) or newer. Android 9–11 phones use solid floating surfaces; Android 12+ keeps backdrop blur.
+Connect, enable Glowlauncher in **Boost**, then choose **TV wallpaper → Choose wallpaper**. The system picker needs no broad photo permission. The editor detects the TV's dimensions, or labels its 16:9 fallback when dimensions are unavailable.
 
-Install the companion APK on your **phone**. Glowlauncher is bundled inside it and is installed on the TV from **Boost**. The separate Glowlauncher APK is only needed for manual launcher installation; it is not the phone companion.
+Use **Fill / crop** for an edge-to-edge background or **Fit whole image** to keep the whole photo. Pinch or use the sliders to zoom, drag or adjust position, and choose dimming for readability. **Apply to TV** prepares and transfers the image to that TV; **Restore glow background** removes it.
 
-Download `KonnectTV-Android9.apk` from [this fork's Releases page](https://github.com/ankitchanki/konnect-tv-Android-9/releases) and install it on your phone. `Glowlauncher.apk` is the optional standalone TV launcher; the phone APK already bundles it. These are development-signed prereleases. See the release notes and [Actions](https://github.com/ankitchanki/konnect-tv-Android-9/actions) for validation results. Physical TV testing has not been completed.
+The TV retains the wallpaper across launcher restarts. Output preserves the detected aspect ratio and is capped at a 1920-pixel longest edge and 2,073,600 pixels to limit memory use on older TVs. Rotation, transfer checksums and atomic commits protect against incomplete uploads. The launcher's wallpaper inbox only accepts its own process or an authorized ADB shell.
 
-You can also build this source or use the `KonnectTV-Android9-test-build` artifact from this fork's **Actions** tab. If an upstream build with the same package name is already installed, Android may require uninstalling it first because its signing key differs. Uninstalling removes that app's saved connections and history.
+### Logs and bug reports
 
-## Set up the TV (once)
+Open **Settings / logs** on the connection screen, or **Settings** after connecting, then **Diagnostic logs**. Logging begins at app startup; connecting a TV is unnecessary to inspect connection failures.
 
-1. On the TV, open **Settings › Device Preferences › About** (or **System › About**).
-2. Press OK on **Build** 7 times until it says you are a developer.
-3. Go back to **Developer options** and turn on **USB debugging**. If you see **Wireless debugging** or **Network debugging**, turn that on too.
+- Search for an action, package or error such as `INSTALL_FAILED_OLDER_SDK`; select **Errors / warnings** for failures.
+- **Collect TV diagnostics** adds the connected TV's identity, package states, memory/storage and recent package-manager/crash logcat entries. The TV firmware controls what ADB can read; this is not an unlimited system log capture.
+- **Export logs** saves a text report to your chosen location; **Share logs** opens the Android share sheet. Include the report, phone/TV model, action taken and expected result in a bug report.
+- Pause/resume recording, turn detailed ADB responses off, or clear local logs. Logs survive restarts, rotate around 1 MB and show the newest 400 events in the viewer. Very long command responses are truncated.
+- Pairing codes, typed remote text, private keys, icon/image bytes are omitted; recognized addresses/identifiers are redacted before storage. TV snapshots can contain installed app names and third-party error text, so review an export before sharing. No report is uploaded automatically.
 
-## Connect
+### Package safety and recovery
 
-Put the phone and the TV on the same Wi-Fi and open KonnectTV. It finds Android TVs on the network by itself.
+The catalog currently contains **59 optional rules**, including **21 TCL rules**, and **78 exact protected packages**, plus protected package patterns. Its reviewed sources include TCL C715 (2020) and later C725/C735/G10/C755/QM6K/P7K reports, plus Sony, Xiaomi, Hisense, Philips and NVIDIA device reports. **This is not a complete list for every TCL TV sold from 2020 to 2026, or a manufacturer safety certification.** Rules follow exact installed package names; firmware, region and features differ. Unknown system packages stay enabled.
 
-- **TVs with Wireless debugging** (Android 11 and newer): on the TV, open **Wireless debugging › Pair device with pairing code**. Tap the TV in KonnectTV and type the 6-digit code.
-- **Other TVs**: tap the TV. It asks **"Allow debugging?"**. Tick **Always allow** and press **Allow**.
-- **TV not listed?** Tap **Enter IP address manually**. The IP is under the TV's network settings. The port is 5555, or the one shown under Wireless debugging.
+Every matched rule explains the feature lost when disabled. TV inputs, remotes, package installation, core services and other essential components remain protected. **Already off** includes pre-existing and factory-disabled components: enable only features you need. **Restore original app** uses the system APK still on the TV for apps removed only from the owner profile; it cannot recreate an APK deleted from the device.
 
-After the first time, KonnectTV remembers the TV and reconnects in one tap.
+Detox disables apps with `pm disable-user`, records successful changes and can undo them. Only your installed apps can be uninstalled. More details, the full list and evidence: [Package catalog](docs/PACKAGE-CATALOG.md). Performance measurements inherited from upstream are documented separately in [BENCHMARK.md](docs/BENCHMARK.md); they have not been repeated for Plus.
 
-### Remember names, tags and the last IP
+## Build and test
 
-- In **Enter IP address manually**, optionally enter a name and tag before connecting. The TV is saved after a successful connection.
-- Tap a **Saved TVs** card to reconnect. **Edit** changes its name, tag or IP/connection port; address changes apply to the next connection.
-- **Use last IP · TV name** fills the manual form with the most recently connected TV's details. When discovery knows a newer wireless-debugging port, it uses that port.
-- While connected, open the TV menu on the Remote tab and choose **Edit TV name, tag or IP**. **Switch TV** returns to the saved list.
-- Names, tags, addresses and ADB authorization keys stay in app storage on this phone. Existing saved TVs migrate automatically. If your router changes an IP, discover the TV again or edit its saved address.
-
-### Android TV 9–10
-
-These versions do **not** have Android 11's wireless pairing-code flow. Enable **USB debugging** and, if the TV offers it, **Network debugging** or **ADB over network**, then connect to the TV's IP on port **5555**. Approve the debugging prompt on the TV. USB debugging by itself does not enable network ADB on every model.
-
-If your TV has no network debugging switch but supports USB ADB, connect it to a computer once, authorize that computer, and run `adb tcpip 5555`. Disconnect USB and enter the TV IP in KonnectTV. Some manufacturers disable network ADB entirely; KonnectTV cannot bypass that restriction. Network ADB may need enabling again after a TV reboot. Turn it off when you no longer need it, and use it only on a trusted local network.
-
-Android 9 launcher setup uses `cmd package set-home-activity`; Android 10+ also tries the Home role. App management, remote commands and undo remain in the companion.
-
-## Safe by design
-
-- Apps are **turned off** (`pm disable-user`), never deleted. Undo one change or everything from **Detox › History**.
-- KonnectTV never turns off Google Play, Play services, keyboards, Bluetooth, HDMI/TV inputs, Settings or the system UI. This applies to Detox and the app manager.
-- Only apps you installed yourself can be uninstalled. System apps can only be turned off.
-- Current launcher setup keeps the stock launcher enabled. It selects Glowlauncher as Home, or uses its Home-button accessibility service when the TV requires that fallback. Removing Glowlauncher restores recorded settings.
-- The safe-to-turn-off list is in [`app/src/main/assets/debloat.json`](app/src/main/assets/debloat.json). Each entry has a plain-English reason. Pull requests for more brands are welcome.
-
-Works on Android TV and Google TV: Sony, TCL, Hisense, Philips, Xiaomi, Chromecast with Google TV, NVIDIA Shield and others. Samsung (Tizen), LG (webOS) and Roku don't run Android, so they can't be cleaned this way.
-
-## Glowlauncher
-
-Glowlauncher is KonnectTV's own home screen for the TV: a big clock and the apps you pick in one glowing dock, with Inputs, Settings and network at the top right. It ships inside KonnectTV, so no launcher download is needed. On the TV, hold OK or press Menu on an app to move or remove it. The **+** tile adds one. Turn it off from **Boost** to get the TV's own home back.
-
-### Set a TV wallpaper from your phone
-
-1. Connect to the TV, open **Boost**, and turn on Glowlauncher. The phone installs the bundled launcher on the TV over the authorized ADB connection.
-2. In **TV wallpaper**, tap **Choose wallpaper** and select an image using the system file picker. No broad photo or storage permission is needed.
-3. The editor reads the TV's display dimensions and shows its aspect ratio. If the TV doesn't report a size, it uses a labelled 16:9 fallback.
-4. Choose **Fill / crop** for an edge-to-edge image, or **Fit whole image** to preserve the full photo with black bars where necessary. Pinch to zoom, drag to reposition, or use the zoom and position sliders. Adjust darkening to keep the clock and dock readable.
-5. Tap **Apply to TV**. The photo is prepared on the phone and transferred directly to the selected TV. An older Glowlauncher from this fork is updated in place when needed; its apps and glow settings are retained.
-
-Wallpaper stays on that TV across launcher restarts. **Restore glow background** removes it. Each TV has its own wallpaper; uninstalling Glowlauncher deletes its wallpaper and settings.
-
-Output preserves the detected aspect ratio and is capped at a 1920-pixel longest edge and 2,073,600 pixels, including on a 4K TV, to limit memory on older devices. Camera rotation is respected. Transfer checksums and an atomic save keep an interrupted upload from replacing the previous background. The launcher's wallpaper inbox accepts only its own process or an authorized ADB shell, and has no network listener or external-storage permission.
-
-**Turning it on can freeze low-memory TVs for a minute or two.** Changing the home screen is the heaviest thing a TV does. KonnectTV clears background apps first and shows each step on your phone while it works. If the TV freezes, leave it on and don't unplug it. It recovers by itself.
-
-> Use at your own risk. This is what works on the TVs we tried. It is not professional advice.
-
-## Build it yourself
-
-You need a full **JDK 21** (including `javac`) and the Android SDK (platform **37.0**, build-tools **36.0.0**). Use recent Android command-line tools; the platform's package name is `platforms;android-37.0`.
+Use a full **JDK 21**, Android SDK platform **37.0** (`platforms;android-37.0`) and build-tools **36.0.0**:
 
 ```sh
-./gradlew :app:testDebugUnitTest :app:lintDebug :glowlauncher:lintRelease :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug :glowlauncher:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest
 ```
 
-The installable test companion is at `app/build/outputs/apk/debug/app-debug.apk`. The bundled TV launcher is at `glowlauncher/build/outputs/apk/release/glowlauncher-release.apk`. For an optimized production build, configure your own persistent signing key below, then run `./gradlew :app:assembleRelease`.
+Outputs: `app/build/outputs/apk/debug/app-debug.apk` and `glowlauncher/build/outputs/apk/release/glowlauncher-release.apk`. The companion bundles that launcher automatically.
 
-To run the connection, wallpaper and saved-storage tests on an emulator or a dedicated test device (the wallpaper test temporarily replaces the launcher's background):
+On an emulator or dedicated test device (wallpaper tests temporarily replace the launcher's background):
 
 ```sh
 ./gradlew :glowlauncher:installRelease :app:connectedDebugAndroidTest
 ```
 
-Tests cover connection-port validation, the wallpaper editor, old saved-TV migration, names/tags/address persistence, and the real shell wallpaper upload/commit/clear path. Wallpaper checks cover restart persistence, checksum rejection and blocked access from another app. They do not prove compatibility with every TV manufacturer's ADB implementation. The workflow in `.github/workflows/android.yml` builds both APKs and runs emulator tests on API 28 and API 36.
+CI runs API 28 and API 36 tests. Coverage includes crop geometry, saved-TV migration within the same package, name/tag persistence, connection validation, shell-result errors, redaction, package classification, startup logs, recovery controls and real shell wallpaper upload/commit/restart/clear/checksum/access checks. It does not establish physical TV compatibility.
 
-The app uses Kotlin and Jetpack Compose. Glowlauncher (`glowlauncher/`) uses plain Android views so it stays small and runs on Android TV 9 and newer in this adaptation. It also has a TV launcher entry and banner for launching it directly from the TV's apps screen. ADB runs on [libadb-android](https://github.com/MuntashirAkon/libadb-android), which handles pairing and TLS. The frosted glass uses [Haze](https://github.com/chrisbanes/haze).
-
-To sign a release build, create `keystore.properties` in the project root. Never commit it.
+For an optimized production build, provide your own persistent signing key using an uncommitted root `keystore.properties`, then run `./gradlew :app:assembleRelease`:
 
 ```properties
-storeFile=konnecttv.jks
+storeFile=konnecttv-plus.jks
 storePassword=...
-keyAlias=konnecttv
+keyAlias=konnecttv-plus
 keyPassword=...
 ```
 
-## Credits
+## Credits and license
 
-This project is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnect-tv). Credit for the original app and Glowlauncher belongs to the upstream project. This fork adds Android 9+ compatibility while retaining the phone companion.
+Forked from [KonnectTV by yashoncode](https://github.com/yashoncode/konnect-tv), retaining the upstream MIT license. Glowlauncher is based on [TV Detox](https://github.com/Ansub/tv-detox). ADB uses [libadb-android](https://github.com/MuntashirAkon/libadb-android); blur uses [Haze](https://github.com/chrisbanes/haze).
 
-Inspired by [TV Detox](https://github.com/Ansub/tv-detox). Glowlauncher is based on TV Detox's home screen.
-
-## License
-
-MIT
+Package rule research incorporates [CleanYourTV device-owner reports](https://github.com/Gathin23/cleanyourtv) by Gathin under MIT. Its notice is retained in [docs/licenses/CleanYourTV-MIT.txt](docs/licenses/CleanYourTV-MIT.txt) and the phone APK's `THIRD-PARTY-NOTICES.txt`. Package reasons in Plus describe the relevant feature trade-offs; they are not blanket endorsements of a debloat preset.

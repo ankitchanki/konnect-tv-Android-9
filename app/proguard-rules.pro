@@ -5,4 +5,4 @@
 -dontwarn org.bouncycastle.**
 -dontwarn javax.naming.**
 # Started by name on the TV through app_process.
--keep class io.konnecttv.adb.IconDump { public static void main(java.lang.String[]); }
+-keep class io.konnecttv.plus.adb.IconDump { public static void main(java.lang.String[]); }

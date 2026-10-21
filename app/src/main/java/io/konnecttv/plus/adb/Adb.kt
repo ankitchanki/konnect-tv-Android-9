@@ -1,0 +1,213 @@
+package io.konnecttv.plus.adb
+
+import android.content.Context
+import io.github.muntashirakon.adb.AbsAdbConnectionManager
+import io.github.muntashirakon.adb.AdbStream
+import io.konnecttv.plus.diagnostics.DiagnosticLog
+import io.konnecttv.plus.diagnostics.LogSanitizer
+import org.bouncycastle.asn1.x500.X500Name
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
+import java.io.File
+import java.io.InputStream
+import java.math.BigInteger
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
+import java.security.PrivateKey
+import java.security.cert.Certificate
+import java.security.cert.CertificateFactory
+import java.security.spec.PKCS8EncodedKeySpec
+import java.util.Date
+import java.util.concurrent.TimeUnit
+import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * One ADB connection to one TV. The RSA key is made once and kept in app storage, so the TV's
+ * "Always allow" and wireless-debugging pairing survive app restarts.
+ *
+ * Every call blocks: run it on Dispatchers.IO.
+ */
+class Adb(context: Context) : AbsAdbConnectionManager() {
+    private val keyFile = File(context.filesDir, "adb.key")
+    private val certFile = File(context.filesDir, "adb.crt")
+    private val privateKey: PrivateKey
+    private val certificate: Certificate
+
+    init {
+        // adbd on Android 11+ speaks the newest protocol; older TVs negotiate down.
+        setApi(30)
+        setTimeout(30, TimeUnit.SECONDS)
+        if (keyFile.exists() && certFile.exists()) {
+            privateKey = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyFile.readBytes()))
+            certificate = certFile.inputStream().use { CertificateFactory.getInstance("X.509").generateCertificate(it) }
+        } else {
+            val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+            val name = X500Name("CN=Konnect TV Plus")
+            val now = Date()
+            val holder = JcaX509v3CertificateBuilder(
+                name, BigInteger.valueOf(now.time), now, Date(now.time + 20L * 365 * 86_400_000), name, pair.public,
+            ).build(JcaContentSignerBuilder("SHA256withRSA").build(pair.private))
+            privateKey = pair.private
+            certificate = JcaX509CertificateConverter().getCertificate(holder)
+            keyFile.writeBytes(privateKey.encoded)
+            certFile.writeBytes(certificate.encoded)
+        }
+    }
+
+    override fun getPrivateKey() = privateKey
+    override fun getCertificate() = certificate
+    override fun getDeviceName() = "Konnect TV Plus"
+
+    /** Runs a shell command and returns its output, stdout and stderr merged. */
+    fun sh(command: String): String = shellResult(command).output
+
+    fun checked(command: String): String {
+        val result = shellResult(command)
+        check(result.exitCode == 0) { "TV command failed (exit ${result.exitCode}): ${result.output}" }
+        return result.output
+    }
+
+    private fun shellResult(command: String): ShellResult {
+        val marker = "__PLUS_${UUID.randomUUID().toString().replace("-", "")}__"
+        val started = android.os.SystemClock.elapsedRealtime()
+        val label = LogSanitizer.command(command)
+        if (DiagnosticLog.verbose.value) DiagnosticLog.record("DEBUG", "ADB", "RUN $label")
+        try {
+            val result = timedStream("shell:$command; __plus_rc=\$?; echo; echo $marker:\$__plus_rc; echo ${marker}_DONE", 90) {
+                parseShellResult(it.readUntil { raw -> "${marker}_DONE" in raw }, marker)
+            }
+            if (result.exitCode != 0 || DiagnosticLog.verbose.value) DiagnosticLog.record(
+                if (result.exitCode == 0) "DEBUG" else "WARN", "ADB",
+                "$label\nExit ${result.exitCode}; ${android.os.SystemClock.elapsedRealtime() - started} ms\n${LogSanitizer.output(command, result.output)}",
+            )
+            return result
+        } catch (e: Exception) {
+            DiagnosticLog.record("ERROR", "ADB", "$label failed after ${android.os.SystemClock.elapsedRealtime() - started} ms", e)
+            throw e
+        }
+    }
+
+    private fun <T> timedStream(service: String, seconds: Long, action: (AdbStream) -> T): T = openStream(service).use { stream ->
+        val expired = AtomicBoolean(false)
+        val timer = commandTimer.schedule({ expired.set(true); runCatching { stream.close() } }, seconds, TimeUnit.SECONDS)
+        try {
+            action(stream).also { if (expired.get()) throw java.io.IOException("TV command timed out after $seconds seconds.") }
+        } catch (e: Exception) {
+            if (expired.get()) throw java.io.IOException("TV command timed out after $seconds seconds.", e)
+            throw e
+        } finally { timer.cancel(false) }
+    }
+
+    private var keyShell: AdbStream? = null
+
+    /** Key presses go down one long-lived shell, so a tap costs a write, not a new stream. */
+    @Synchronized
+    fun keyevent(code: Int) = typeRaw("input keyevent $code")
+
+    @Synchronized
+    fun type(text: String) = typeRaw("input text ${shellText(text)}")
+
+    private fun typeRaw(line: String) {
+        if (DiagnosticLog.verbose.value) DiagnosticLog.record("DEBUG", "Remote", LogSanitizer.command(line))
+        val shell = keyShell?.takeUnless { it.isClosed } ?: openStream("shell:").also { keyShell = it }
+        try {
+            shell.openOutputStream().apply { write("$line\n".toByteArray()); flush() }
+        } catch (e: Exception) {
+            keyShell = null
+            throw e
+        }
+    }
+
+    /** Streams an APK into `pm install`, no temp file on the TV. Returns pm's last line. */
+    fun install(apk: InputStream, size: Long): String {
+        require(size > 0) { "The APK is empty." }
+        val marker = "__INSTALL_${UUID.randomUUID().toString().replace("-", "")}__"
+        DiagnosticLog.record("INFO", "Install", "APK install started ($size bytes). Awaiting TV package-manager response.")
+        try {
+            val result = timedStream("exec:${installationCommand(size, marker)}", 180) { stream ->
+                val sent = runCatching { stream.openOutputStream().let { out -> apk.copyTo(out).also { out.flush() } } }
+                val response = parseShellResult(stream.readUntil { "${marker}_DONE" in it }, marker)
+                check(sent.getOrDefault(-1L) == size) { "APK transfer was incomplete. TV response: ${response.output}" }
+                response
+            }
+            val success = result.exitCode == 0 && result.output.lines().any { it.trim() == "Success" || it.trim().startsWith("Success:") }
+            DiagnosticLog.record(if (success) "INFO" else "ERROR", "Install", "Package-manager exit ${result.exitCode}\n${result.output}")
+            check(success) { "Install failed: ${result.output}\n${installationHelp(result.output)}" }
+            return "Success"
+        } catch (e: Exception) {
+            DiagnosticLog.record("ERROR", "Install", "APK installation did not complete", e)
+            throw e
+        }
+    }
+
+    /** Copies a file onto the TV. `exec:` is a raw pipe, so the bytes arrive untouched. */
+    fun push(file: File, remote: String) {
+        if (DiagnosticLog.verbose.value) DiagnosticLog.record("DEBUG", "Transfer", "Sending ${file.length()} bytes to $remote")
+        openStream("exec:head -c ${file.length()} > '${remote.replace("'", "'\\''")}'; echo $END").use { stream ->
+            stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
+            stream.readUntil { END in it }
+        }
+    }
+
+    /** `content write` hands the bytes to the launcher's shell-only inbox, including on Android 9. */
+    fun pushWallpaper(file: File) {
+        DiagnosticLog.record("INFO", "Wallpaper", "Sending optimized wallpaper (${file.length()} bytes; image content omitted)")
+        openStream("exec:head -c ${file.length()} | content write --uri content://io.konnecttv.glowlauncher.wallpaper/wallpaper; echo RESULT:\$?; echo $END").use { stream ->
+            stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
+            // head closes the pipe at the exact file size, so content write gets EOF without closing ADB.
+            val result = stream.readUntil { END in it }
+            check("RESULT:0" in result) { "The TV could not receive the wallpaper." }
+        }
+    }
+
+    override fun close() {
+        keyShell?.runCatching { close() }
+        keyShell = null
+        super.close()
+    }
+}
+
+private const val END = "__KONNECTTV_END__"
+private val commandTimer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "Plus-ADB-watchdog").apply { isDaemon = true } }
+
+/**
+ * Reads until [done] says the output is complete. libadb's reader can block forever when the
+ * TV closes a stream right after its last bytes, so callers never rely on end-of-stream.
+ */
+private fun AdbStream.readUntil(done: (String) -> Boolean): String {
+    val input = openInputStream()
+    val out = StringBuilder()
+    val buf = ByteArray(8192)
+    while (!done(out.toString())) {
+        val n = try { input.read(buf) } catch (e: java.io.IOException) { -1 }
+        if (n < 0) break
+        out.append(String(buf, 0, n))
+    }
+    return out.toString()
+}
+
+/** `input text` needs spaces as %s and shell metacharacters quoted. */
+internal fun shellText(text: String): String =
+    "'" + text.replace(" ", "%s").replace("'", "'\\''") + "'"
+
+/** Android key codes the remote sends. */
+object Key {
+    const val HOME = 3
+    const val BACK = 4
+    const val UP = 19
+    const val DOWN = 20
+    const val LEFT = 21
+    const val RIGHT = 22
+    const val OK = 23
+    const val VOL_UP = 24
+    const val VOL_DOWN = 25
+    const val POWER = 26
+    const val MENU = 82
+    const val PLAY_PAUSE = 85
+    const val MUTE = 164
+    const val SETTINGS = 176
+    const val DEL = 67
+}
