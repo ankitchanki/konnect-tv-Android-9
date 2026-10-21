@@ -24,7 +24,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun RemoteMediaControls(state: RemoteMedia?, error: String?, busy: Boolean,
-    onVolume: (Int) -> Unit, onSeek: (String, Long) -> Unit, onRefresh: () -> Unit) {
+    onVolume: (Int) -> Unit, onSeek: (String, Long) -> Unit, onRefresh: () -> Unit, onEnable: () -> Unit = {}) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(state?.playback?.key) { while (true) { now = SystemClock.elapsedRealtime(); delay(500) } }
     Card {
@@ -64,7 +64,11 @@ fun RemoteMediaControls(state: RemoteMedia?, error: String?, busy: Boolean,
                 if (requested != null && volume != null) onVolume(volume.min + (requested * (volume.max - volume.min)).roundToInt())
             })
         if (volume?.supported != true) Text(volume?.hint ?: "Waiting for TV volume…", style = Small)
-        if (error != null) { Text("The TV couldn't provide media controls. Other remote buttons remain available. See Diagnostic logs.", style = Small); PrimaryButton("Retry media controls", enabled = !busy, onClick = onRefresh) }
+        if (error != null || state?.needsAccess == true) {
+            Text("Enable installs/updates the bundled TV companion and grants Android notification-listener access for playback controls. Notification contents are not read or saved. TV Home is kept. Removing the companion also removes these sliders.", style = Small)
+            PrimaryButton(if (busy) "Setting up…" else "Enable media sliders", enabled = !busy, onClick = onEnable)
+            SecondaryButton("Refresh media state") { if (!busy) onRefresh() }
+        }
     }
 }
 

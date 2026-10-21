@@ -20,8 +20,8 @@ android {
         // Android TV 9+, matching this adaptation's supported TV versions.
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
 
     signingConfigs {
@@ -35,6 +35,8 @@ android {
             }
         }
     }
+
+    sourceSets.getByName("main").kotlin.srcDir(rootProject.file("shared-media/src/main/java"))
 
     buildTypes {
         release {

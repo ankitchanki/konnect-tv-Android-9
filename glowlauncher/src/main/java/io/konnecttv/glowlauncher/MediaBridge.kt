@@ -1,22 +1,23 @@
-package io.konnecttv.plus.adb
+package io.konnecttv.glowlauncher
 
+import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.os.Looper
+import android.os.Build
 import android.os.SystemClock
 import io.konnecttv.plus.mediaPosition
 import org.json.JSONObject
 import java.security.MessageDigest
 
-/** Runs as the already-authorized ADB shell. No TV service or accessibility permission is installed. */
-object MediaBridge {
-    @JvmStatic fun main(args: Array<String>) {
-        val result = runCatching {
-            val context = shellContext()
+/** Media transport inside the TV companion, using its explicitly enabled notification-listener access. */
+internal object MediaBridge {
+    fun execute(context: Context, args: Array<String>): JSONObject {
+        return runCatching {
             val audio = context.getSystemService(AudioManager::class.java)
             val sessions = context.getSystemService(MediaSessionManager::class.java)
             when (args.firstOrNull() ?: "status") {
@@ -30,7 +31,7 @@ object MediaBridge {
                     audio.setStreamVolume(AudioManager.STREAM_MUSIC, index.coerceIn(min, max), 0)
                 }
                 "seek" -> {
-                    val controller = selected(sessions) ?: error("No active TV media session.")
+                    val controller = selected(sessions, context) ?: error("No active TV media session.")
                     val expected = args.getOrNull(1).orEmpty()
                     check(expected.isNotBlank() && expected == mediaKey(controller)) { "Playback changed. Refresh and try again." }
                     val duration = controller.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0
@@ -43,13 +44,11 @@ object MediaBridge {
                 }
                 else -> error("Unknown media command.")
             }
-            snapshot(audio, sessions).put("ok", true)
+            snapshot(audio, sessions, context).put("ok", true).put("needsAccess", !context.getSystemService(NotificationManager::class.java).isNotificationListenerAccessGranted(ComponentName(context, MediaAccessService::class.java)))
         }.getOrElse { JSONObject().put("ok", false).put("error", "${it.javaClass.simpleName}: ${it.message}") }
-        println("PLUS_MEDIA:$result")
-        System.out.flush()
     }
 
-    private fun snapshot(audio: AudioManager, sessions: MediaSessionManager): JSONObject {
+    private fun snapshot(audio: AudioManager, sessions: MediaSessionManager, context: Context): JSONObject {
         val volume = runCatching {
             val min = audio.getStreamMinVolume(AudioManager.STREAM_MUSIC)
             val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -58,7 +57,7 @@ object MediaBridge {
                 .put("supported", supported).put("hint", if (supported) "TV media volume" else "Fixed TV/HDMI volume. Use the TV or receiver's volume controls.")
         }.getOrElse { JSONObject().put("supported", false).put("hint", "The TV did not allow media-volume access.").put("diagnostic", "Volume access: ${it.javaClass.simpleName}: ${it.message}") }
         val playback = runCatching {
-            val c = selected(sessions)
+            val c = selected(sessions, context)
             if (c == null) JSONObject().put("title", "No active playback").put("hint", "Open a video or music app on the TV.")
             else {
                 val m = c.metadata
@@ -76,24 +75,16 @@ object MediaBridge {
         return JSONObject().put("volume", volume).put("playback", playback)
     }
 
-    private fun selected(manager: MediaSessionManager): MediaController? = manager.getActiveSessions(null)
+    private fun selected(manager: MediaSessionManager, context: Context): MediaController? = manager.getActiveSessions(ComponentName(context, MediaAccessService::class.java))
         .let { list -> list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
             ?: list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PAUSED }
             ?: list.firstOrNull() }
 
     private fun mediaKey(c: MediaController): String {
         val m = c.metadata
-        val identity = listOf(c.packageName, c.tag, m?.getString(MediaMetadata.METADATA_KEY_MEDIA_ID),
+        val identity = listOf(c.packageName, if (Build.VERSION.SDK_INT >= 30) c.tag else "", m?.getString(MediaMetadata.METADATA_KEY_MEDIA_ID),
             m?.getString(MediaMetadata.METADATA_KEY_TITLE), m?.getLong(MediaMetadata.METADATA_KEY_DURATION)).joinToString("|")
         return MessageDigest.getInstance("SHA-256").digest(identity.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
     }
 
-    private fun shellContext(): Context {
-        Looper.prepareMainLooper()
-        val type = Class.forName("android.app.ActivityThread")
-        val thread = type.getDeclaredMethod("systemMain").invoke(null)
-        val system = type.getDeclaredMethod("getSystemContext").invoke(thread) as Context
-        // Attribute privileged operations to the real calling package/UID, rather than package "android".
-        return system.createPackageContext("com.android.shell", Context.CONTEXT_IGNORE_SECURITY)
-    }
 }

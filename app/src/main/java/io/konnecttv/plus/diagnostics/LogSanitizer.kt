@@ -14,13 +14,13 @@ object LogSanitizer {
 
     fun command(value: String): String = when {
         value.contains("input text") -> "Remote text input (content omitted)"
-        value.contains("MediaBridge") -> "TV media controls (metadata omitted)"
+        (value.contains("MediaBridge") || value.contains("io.konnecttv.glowlauncher.media")) -> "TV media controls (metadata omitted)"
         value.contains("IconDump") -> "App icon helper (image payload omitted)"
         else -> clean(value)
     }
 
     fun output(command: String, value: String): String = when {
-        command.contains("MediaBridge") || command.contains("input text") || command.contains("IconDump") || command.contains("ro.serialno") || command.contains("android_id") -> "[sensitive or binary output omitted]"
+        command.contains("MediaBridge") || command.contains("io.konnecttv.glowlauncher.media") || command.contains("input text") || command.contains("IconDump") || command.contains("ro.serialno") || command.contains("android_id") -> "[sensitive or binary output omitted]"
         else -> clean(value).take(12000).let { if (value.length > 12000) "$it\n[output truncated]" else it }
     }
 }

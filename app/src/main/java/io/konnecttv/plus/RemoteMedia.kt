@@ -14,13 +14,7 @@ data class RemotePlayback(val key: String = "", val title: String = "No active p
     fun positionAt(now: Long) = mediaPosition(positionMs, durationMs, playing, speed, now - receivedAt)
 }
 
-data class RemoteMedia(val volume: RemoteVolume = RemoteVolume(), val playback: RemotePlayback = RemotePlayback(), val warnings: List<String> = emptyList())
-
-internal fun mediaPosition(position: Long, duration: Long, playing: Boolean, speed: Float, elapsed: Long): Long {
-    if (duration <= 0) return 0
-    val advance = if (playing && speed.isFinite()) elapsed.coerceAtLeast(0).toDouble() * speed else 0.0
-    return (position.toDouble() + advance).coerceIn(0.0, duration.toDouble()).toLong()
-}
+data class RemoteMedia(val volume: RemoteVolume = RemoteVolume(), val playback: RemotePlayback = RemotePlayback(), val warnings: List<String> = emptyList(), val needsAccess: Boolean = false)
 
 internal fun mediaTime(ms: Long): String {
     val seconds = ms.coerceAtLeast(0) / 1000
@@ -29,9 +23,9 @@ internal fun mediaTime(ms: Long): String {
 }
 
 internal fun parseRemoteMedia(raw: String, now: Long): RemoteMedia {
-    val line = raw.lineSequence().lastOrNull { it.startsWith("PLUS_MEDIA:") }
-        ?: error("The TV couldn't start media controls. Open Diagnostic logs for its response.")
-    val json = JSONObject(line.removePrefix("PLUS_MEDIA:"))
+    val encoded = Regex("PLUS_MEDIA=([A-Za-z0-9+/=]+)").find(raw)?.groupValues?.get(1)
+        ?: error("Enable TV media sliders to install or update the TV companion.")
+    val json = JSONObject(String(android.util.Base64.decode(encoded, android.util.Base64.NO_WRAP), Charsets.UTF_8))
     check(json.optBoolean("ok")) { json.optString("error", "TV media command failed.") }
     val v = json.getJSONObject("volume")
     val p = json.getJSONObject("playback")
@@ -44,5 +38,6 @@ internal fun parseRemoteMedia(raw: String, now: Long): RemoteMedia {
             p.optLong("position").coerceIn(0, duration), p.optBoolean("playing"), p.optDouble("speed", 1.0).toFloat(),
             p.optBoolean("seekSupported") && duration > 0 && p.optString("key").isNotBlank(), p.optString("hint"), now),
         listOf(v.optString("diagnostic"), p.optString("diagnostic")).filter { it.isNotBlank() },
+        json.optBoolean("needsAccess"),
     )
 }

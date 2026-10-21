@@ -68,7 +68,7 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
-            RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() })
+            RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
             Spacer(Modifier.height(8.dp))
             DPad(::press)
             Spacer(Modifier.height(8.dp))
@@ -107,6 +107,7 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
             Text("${tv.host}:${tv.port}", style = Small)
             if (tv.tag.isNotBlank()) Text(tv.tag, style = Small)
             SecondaryButton("Edit TV name, tag or IP") { menu = false; editTv = true }
+            if (media != null && media?.needsAccess == false) SecondaryButton("Disable playback access") { vm.disableMediaControls(); menu = false }
             SecondaryButton("Refresh everything") { vm.refreshAll(); menu = false }
             SecondaryButton("Switch TV") { vm.disconnect(); menu = false }
             SecondaryButton("Forget this TV", color = C.Danger) { vm.forget(tv.id); menu = false }

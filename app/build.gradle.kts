@@ -42,6 +42,8 @@ android {
         }
     }
 
+    sourceSets.getByName("main").kotlin.srcDir(rootProject.file("shared-media/src/main/java"))
+
     buildTypes {
         release {
             // Unsigned when keystore.properties is missing, which is what a fresh clone gets.

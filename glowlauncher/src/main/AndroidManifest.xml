@@ -3,6 +3,7 @@
 
     <!-- Only for the network icon: Wi-Fi, Ethernet or offline. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Android 11+ only shows a home screen the apps it asks to see. -->
     <queries>
@@ -38,6 +39,17 @@
             android:name=".WallpaperProvider"
             android:authorities="io.konnecttv.glowlauncher.wallpaper"
             android:exported="true" />
+        <provider
+            android:name=".MediaControlProvider"
+            android:authorities="io.konnecttv.glowlauncher.media"
+            android:exported="true" />
+        <service
+            android:name=".MediaAccessService"
+            android:label="Glowlauncher media controls"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+        </service>
         <activity
             android:name=".HomeActivity"
             android:exported="true"
