@@ -65,7 +65,7 @@ val GLOW_ACCENTS = listOf(
 
 val LAUNCHER_STEPS = listOf("Making room on the TV", "Installing Glowlauncher", "Setting it as the home screen", "Adding your apps")
 
-data class Tweaks(val animationsOff: Boolean, val screensaverOff: Boolean, val sleepMinutes: Int?, val launcherOn: Boolean)
+data class Tweaks(val animationsOff: Boolean, val screensaverOff: Boolean, val sleepMinutes: Int?, val launcherOn: Boolean, val launcherInstalled: Boolean = launcherOn)
 
 /** Our clean TV home screen, shipped inside this app's assets. */
 private const val LAUNCHER_PKG = "io.konnecttv.glowlauncher"
@@ -73,7 +73,8 @@ private const val LAUNCHER_PKG = "io.konnecttv.glowlauncher"
 private const val OLD_LAUNCHER_PKG = "com.ansub.tvhome"
 /** Where our APK sits on the TV while it draws icons; deleted right after. */
 private const val ICON_HELPER = "/data/local/tmp/konnecttv-icons.jar"
-private const val MEDIA_HELPER = "/data/local/tmp/konnecttv-plus-media.jar"
+private const val MEDIA_URI = "content://io.konnecttv.glowlauncher.media"
+private const val MEDIA_ACCESS = "io.konnecttv.glowlauncher/.MediaAccessService"
 private const val LAUNCHER_ACTIVITY = "$LAUNCHER_PKG/.HomeActivity"
 
 /** Glowlauncher's accessibility service that answers Home on TVs that keep their own home (Google TV). */
@@ -429,12 +430,15 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             "settings get global window_animation_scale; settings get secure screensaver_enabled; " +
                 "settings get system screen_off_timeout; (pm path $LAUNCHER_PKG; pm path $OLD_LAUNCHER_PKG) 2>/dev/null | head -1"
         ).lines()
+        val installed = v.getOrNull(3)?.startsWith("package:") == true
+        val service = a.sh("settings get secure enabled_accessibility_services; settings get secure accessibility_enabled").lines()
+        val active = installed && (isHomeActive(a) || (service.getOrNull(0).orEmpty().split(':').contains(HOME_SERVICE) && service.getOrNull(1) == "1"))
         return Tweaks(
             animationsOff = v.getOrNull(0)?.toFloatOrNull() == 0f,
             screensaverOff = v.getOrNull(1) == "0",
             sleepMinutes = v.getOrNull(2)?.toLongOrNull()?.let { (it / 60_000).toInt() },
-            // Installed = on, so switching it off always cleans up, even after a half-finished setup.
-            launcherOn = v.getOrNull(3)?.startsWith("package:") == true,
+            launcherOn = active,
+            launcherInstalled = installed,
         )
     }
 
@@ -464,19 +468,58 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
 
     val remoteMedia = MutableStateFlow<RemoteMedia?>(null)
     val remoteMediaError = MutableStateFlow<String?>(null)
-    private var mediaHelperConnection: Adb? = null
 
     private fun mediaCommand(a: Adb, args: String = "status"): RemoteMedia {
-        if (mediaHelperConnection !== a) {
-            a.checked("rm -f $MEDIA_HELPER")
-            a.push(helperJar(), MEDIA_HELPER)
-            a.checked("chmod 444 $MEDIA_HELPER")
-            mediaHelperConnection = a
-        }
-        val raw = a.checked("CLASSPATH=$MEDIA_HELPER app_process /system/bin io.konnecttv.plus.adb.MediaBridge $args", seconds = 15)
+        val parts = args.split(' ')
+        val method = parts[0]
+        val argument = when (method) { "volume" -> " --arg ${parts[1]}"; "seek" -> " --arg ${parts[1]}:${parts[2]}"; else -> "" }
+        val raw = a.checked("content call --uri $MEDIA_URI --method $method$argument", seconds = 15)
         return parseRemoteMedia(raw, android.os.SystemClock.elapsedRealtime()).also { value ->
             if (value.warnings != remoteMedia.value?.warnings) value.warnings.forEach { DiagnosticLog.record("WARN", "Remote media", it) }
         }
+    }
+
+    private suspend fun awaitMediaAccess(a: Adb, allowed: Boolean): RemoteMedia {
+        var state = mediaCommand(a)
+        repeat(6) {
+            if (state.needsAccess != allowed && (!allowed || state.warnings.none { it.startsWith("Media-session access:") })) return state
+            delay(300)
+            state = mediaCommand(a)
+        }
+        return state
+    }
+
+    fun enableMediaControls() = work("Enable TV media controls") { a ->
+        var state = runCatching { mediaCommand(a) }.getOrNull()
+        if (state == null) {
+            val existed = a.sh("pm path $LAUNCHER_PKG").startsWith("package:")
+            val apk = File(getApplication<Application>().cacheDir, "media-companion.apk")
+            try {
+                getApplication<Application>().assets.open("glowlauncher.apk").use { input -> apk.outputStream().use { input.copyTo(it) } }
+                apk.inputStream().use { a.install(it, apk.length()) }
+            } finally { apk.delete() }
+            if (!existed) record(Change(System.currentTimeMillis(), "install", LAUNCHER_PKG, "TV media companion installed"))
+            state = mediaCommand(a)
+        }
+        val previouslyAllowed = !state.needsAccess
+        a.checked("cmd notification allow_listener $MEDIA_ACCESS 0")
+        val updated = awaitMediaAccess(a, true)
+        check(!updated.needsAccess && updated.warnings.none { it.startsWith("Media-session access:") }) { "The TV did not allow media access. Check Diagnostic logs and the TV's Notification access settings." }
+        if (!previouslyAllowed && history.value.none { it.kind == "mediaAccess" }) record(Change(System.currentTimeMillis(), "mediaAccess", MEDIA_ACCESS, "TV media access enabled"))
+        remoteMedia.value = updated
+        remoteMediaError.value = null
+        apps.value = readApps(a)
+        tweaks.value = readTweaks(a)
+        say("Media sliders enabled. The TV's Home selection was kept.")
+    }
+
+    fun disableMediaControls() = work("Disable TV media access") { a ->
+        a.checked("cmd notification disallow_listener $MEDIA_ACCESS 0")
+        val state = awaitMediaAccess(a, false)
+        check(state.needsAccess) { "The TV did not revoke media access. Check its Notification access settings." }
+        remoteMedia.value = state
+        history.value.filter { it.kind == "mediaAccess" }.forEach { forgetChange(it) }
+        say("Playback access disabled. The TV companion and volume controls remain installed.")
     }
 
     /** Only the visible Remote screen polls. Skip a poll while another TV operation owns the connection. */
@@ -490,7 +533,6 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             if (a === adb && tv?.id == id) { remoteMedia.value = value; remoteMediaError.value = null }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            mediaHelperConnection = null
             val text = e.message ?: "TV media controls unavailable."
             if (remoteMediaError.value != text) DiagnosticLog.record("WARN", "Remote media", "Media refresh failed", e)
             remoteMedia.value = null
@@ -502,6 +544,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     fun setTvVolume(index: Int) = work("Set TV media volume") { a ->
         val volume = remoteMedia.value?.volume ?: error("Refresh the TV volume first.")
         check(volume.supported) { volume.hint }
+        DiagnosticLog.record("INFO", "Remote media", "Requested TV media-volume index ${index.coerceIn(volume.min, volume.max)}")
         remoteMedia.value = mediaCommand(a, "volume ${index.coerceIn(volume.min, volume.max)}")
         remoteMediaError.value = null
     }
@@ -509,6 +552,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     fun seekTvPlayback(key: String, position: Long) = work("Seek TV playback") { a ->
         val playback = remoteMedia.value?.playback ?: error("Refresh playback first.")
         check(playback.seekSupported && key == playback.key && key.matches(Regex("[a-f0-9]{24}"))) { "Playback changed or seeking is unavailable. Refresh and try again." }
+        DiagnosticLog.record("INFO", "Remote media", "Requested seek to ${position.coerceIn(0, playback.durationMs)} ms (media title omitted)")
         remoteMedia.value = mediaCommand(a, "seek $key ${position.coerceIn(0, playback.durationMs)}")
         remoteMediaError.value = null
     }
@@ -615,6 +659,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         when (change.kind) {
             "disable", "home" -> a.checked("pm enable --user 0 ${change.target}")
             "install" -> a.checked("pm uninstall ${change.target}")
+            "mediaAccess" -> a.checked("cmd notification disallow_listener ${change.target} 0")
             "setting" -> {
                 val (ns, key) = change.target.split(':', limit = 2)
                 a.checked(if (change.old == null) "settings delete $ns $key" else "settings put $ns $key ${change.old}")

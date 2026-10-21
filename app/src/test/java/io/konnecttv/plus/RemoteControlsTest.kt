@@ -70,6 +70,6 @@ class RemoteControlsTest {
         assertEquals("1:02:03",mediaTime(3723000))
     }
     @Test fun mediaMetadataIsNotWrittenToAdbLogs() {
-        assertFalse(LogSanitizer.output("app_process MediaBridge status","Private viewing title").contains("Private viewing title"))
+        assertFalse(LogSanitizer.output("content call --uri content://io.konnecttv.glowlauncher.media --method status","Private viewing title").contains("Private viewing title"))
     }
 }

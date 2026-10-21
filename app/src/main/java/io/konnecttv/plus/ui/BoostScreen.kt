@@ -104,6 +104,10 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
                 if (launcherOn) launcherMenu = true else { vm.loadHomeChoices(); pickHome = true }
             }
 
+            if (tweaks?.launcherInstalled == true && !launcherOn) {
+                Text("TV companion installed; the TV's own Home is still selected.", style = Small)
+                SecondaryButton("Manage installed TV companion") { launcherMenu = true }
+            }
             Card {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("TV wallpaper", style = Body)
@@ -141,9 +145,10 @@ fun BoostScreen(vm: TvViewModel, tv: SavedTv) {
 
         GlassSheet(launcherMenu, onDismiss = { launcherMenu = false }) {
             Text("Glowlauncher", style = Body.copy(fontSize = 17.sp))
-            Text("Active on ${tv.name}.", style = Small)
-            PrimaryButton("Edit home apps") { launcherMenu = false; vm.loadHomeChoices(); pickHome = true }
-            SecondaryButton("Turn off, bring back the TV's own home") { launcherMenu = false; vm.setLauncher(false) }
+            Text(if (launcherOn) "Active on ${tv.name}." else "Installed for media controls; Home selection is kept.", style = Small)
+            Text("Removing the TV companion also removes its media sliders and wallpaper data.", style = Small)
+            PrimaryButton(if (launcherOn) "Edit home apps" else "Use as TV Home") { launcherMenu = false; vm.loadHomeChoices(); pickHome = true }
+            SecondaryButton(if (launcherOn) "Turn off, bring back the TV's own home" else "Remove TV companion") { launcherMenu = false; vm.setLauncher(false) }
         }
 
         GlassSheet(clearWallpaper, onDismiss = { clearWallpaper = false }) {

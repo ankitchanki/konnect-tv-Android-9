@@ -71,6 +71,22 @@ class RemoteMediaTest {
         compose.onNodeWithText("Live stream").assertExists()
     }
 
+    @Test fun mediaAccessSetupRequiresAnExplicitTap() {
+        var enabled = 0
+        compose.activity.runOnUiThread {
+            compose.activity.setContent {
+                Column(Modifier.fillMaxSize().background(C.Bg).padding(16.dp)) {
+                    RemoteMediaControls(RemoteMedia(needsAccess = true),null,false,{}, {_,_->}, {}, {enabled++})
+                }
+            }
+        }
+        compose.runOnIdle { assertEquals(0, enabled) }
+        compose.onNodeWithText("Enable media sliders").performScrollTo().assertIsDisplayed()
+        screenshot("media-setup.png")
+        compose.onNodeWithText("Enable media sliders").performClick()
+        compose.runOnIdle { assertEquals(1, enabled) }
+    }
+
     @Test fun currentRemoteScreenshotsIncludeTheNewSlidersAndOriginalButtons() {
         val vm = ViewModelProvider(compose.activity)[TvViewModel::class.java]
         compose.runOnIdle {
@@ -98,11 +114,13 @@ class RemoteMediaTest {
         session.setPlaybackState(playback(60000));session.isActive=true
         val audio=context.getSystemService(AudioManager::class.java)
         val original=audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val script=File(context.getExternalFilesDir(null),"media-bridge-test.sh")
+        val component="io.konnecttv.glowlauncher/.MediaAccessService"
         fun bridge(args:String):String {
-            script.writeText("CLASSPATH=${context.applicationInfo.sourceDir} app_process /system/bin io.konnecttv.plus.adb.MediaBridge $args 2>&1\n")
-            return shell("sh ${script.path}")
+            val parts=args.split(' ')
+            val arg=when(parts[0]){"volume"->" --arg ${parts[1]}";"seek"->" --arg ${parts[1]}:${parts[2]}";else->""}
+            return shell("content call --uri content://io.konnecttv.glowlauncher.media --method ${parts[0]}$arg")
         }
+        shell("cmd notification allow_listener $component 0")
         try {
             val raw=bridge("status")
             val status=parseRemoteMedia(raw,SystemClock.elapsedRealtime())
@@ -115,7 +133,8 @@ class RemoteMediaTest {
             val after=parseRemoteMedia(bridge("status"),SystemClock.elapsedRealtime())
             assertEquals(120000L,after.playback.positionMs)
             val rejected=bridge("seek 000000000000000000000000 220000")
-            assertTrue(rejected,rejected.contains("Playback changed"))
+            try { parseRemoteMedia(rejected,SystemClock.elapsedRealtime());fail("Stale playback must be refused") }
+            catch (e:IllegalStateException){assertTrue(e.message,e.message.orEmpty().contains("Playback changed"))}
             assertEquals(120000L,sought.get())
             if(!audio.isVolumeFixed && audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)>audio.getStreamMinVolume(AudioManager.STREAM_MUSIC)) assertTrue(raw,status.volume.supported)
             if(status.volume.supported) {
@@ -125,8 +144,22 @@ class RemoteMediaTest {
             }
         } finally {
             if(!audio.isVolumeFixed)runCatching { bridge("volume $original") }
-            session.release();script.delete()
+            session.release()
+            shell("cmd notification disallow_listener $component 0")
         }
+    }
+
+    @Test fun mediaProviderRejectsOtherAppsAndReportsRevokedAccess() {
+        val context=ApplicationProvider.getApplicationContext<Context>()
+        try {
+            context.contentResolver.call(android.net.Uri.parse("content://io.konnecttv.glowlauncher.media"),"status",null,null)
+            fail("Another app must not be able to read/control media")
+        } catch(expected:SecurityException) { assertTrue(expected.message.orEmpty().contains("ADB shell")) }
+        shell("cmd notification disallow_listener io.konnecttv.glowlauncher/.MediaAccessService 0")
+        val raw=shell("content call --uri content://io.konnecttv.glowlauncher.media --method status")
+        val state=parseRemoteMedia(raw,SystemClock.elapsedRealtime())
+        assertTrue(raw,state.needsAccess)
+        assertFalse(state.playback.seekSupported)
     }
 
     private fun sample()=RemoteMedia(RemoteVolume(6,0,15,true,"TV media volume"),

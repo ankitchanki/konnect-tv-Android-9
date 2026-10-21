@@ -9,6 +9,7 @@
 
     <queries>
         <provider android:authorities="io.konnecttv.glowlauncher.wallpaper" />
+        <provider android:authorities="io.konnecttv.glowlauncher.media" />
     </queries>
 
     <application

@@ -110,7 +110,9 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 
 On **Remote**, the media card shows the active video's or song's title, elapsed/total time and a volume percentage. Tap anywhere on a line or drag its thumb, then release to send the chosen value. Volume uses the TV's actual media-stream range; the time line uses the player's reported duration. Other remote buttons stay available.
 
-The phone reads the TV through a small helper run as the already-authorized ADB shell. It installs no background TV service. State refreshes about every three seconds while Remote is visible and the app is in the foreground; elapsed time advances between refreshes. A seek checks that the active media identity still matches the preview, preventing an old drag from seeking a different video after playback changes.
+Choose **Enable media sliders** once on the Remote screen. It installs or updates the bundled Glowlauncher TV companion and enables its Android notification-listener access for active playback sessions. This setup keeps your existing TV Home selection; Boost can separately make Glowlauncher your Home. Android notification access is broader than media access, but this implementation does not read or save notification contents. Use **Remote → ••• → Disable playback access** to revoke it. Absolute volume can remain available while playback access is revoked. Removing the TV companion also removes its media sliders.
+
+The phone calls a shell-only media provider in the small TV companion over the existing authorized ADB connection. State refreshes about every three seconds while Remote is visible and the app is in the foreground; elapsed time advances between refreshes. A seek checks that the active media identity still matches the preview, preventing an old drag from seeking a different video after playback changes.
 
 **Compatibility:** A TV or HDMI/receiver setup with fixed media volume cannot offer absolute volume adjustment. Playback seeking requires an active Android media session, a known duration and the player's seek action. Live streams and apps that omit those details show a disabled line and a reason. Manufacturer restrictions can block media access; the remaining D-pad/key controls still work. A player may ignore a seek request or report its new position with a delay. The sliders reflect subsequent TV state rather than claiming universal player support.
 
@@ -164,7 +166,7 @@ On an emulator or dedicated test device (wallpaper tests temporarily replace the
 ./gradlew :glowlauncher:installRelease :app:connectedDebugAndroidTest
 ```
 
-CI runs API 28 and API 36 tests. Coverage includes crop geometry, saved-TV migration within the same package, name/tag persistence, connection validation, shell-result errors, transfer deadlines, discovery service lifetimes, media position math, slider interaction, actual shell media-session seeking/volume, redaction, package classification, startup logs, recovery controls and real shell wallpaper upload/commit/restart/clear/checksum/access checks. It does not establish physical TV compatibility.
+CI runs API 28 and API 36 tests. Coverage includes crop geometry, saved-TV migration within the same package, name/tag persistence, connection validation, shell-result errors, transfer deadlines, discovery service lifetimes, media position math, slider interaction, actual TV-companion media-session seeking/volume and caller/access checks, redaction, package classification, startup logs, recovery controls and real shell wallpaper upload/commit/restart/clear/checksum/access checks. It does not establish physical TV compatibility.
 
 For an optimized production build, provide your own persistent signing key using an uncommitted root `keystore.properties`, then run `./gradlew :app:assembleRelease`:
 
