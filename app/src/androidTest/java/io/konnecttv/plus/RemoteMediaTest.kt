@@ -95,7 +95,7 @@ class RemoteMediaTest {
 
     @Test fun tallRemoteFillsTheSpaceAboveTheTabBar() {
         showRemote(small = false)
-        compose.onNodeWithTag("remote-dpad").assertHeightIsAtLeast(220.dp)
+        compose.onNodeWithTag("remote-dpad").assertHeightIsAtLeast(260.dp)
         compose.onNodeWithText("YouTube").assertIsDisplayed()
         compose.onNodeWithText("Hotstar").assertIsDisplayed()
         compose.onNodeWithText("Off").assertIsDisplayed()
