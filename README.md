@@ -8,30 +8,30 @@ This is a fork of [KonnectTV by yashoncode](https://github.com/yashoncode/konnec
 
 [Download APKs](https://github.com/ankitchanki/konnect-tv-Android-9/releases) · [Build and emulator results](https://github.com/ankitchanki/konnect-tv-Android-9/actions) · [Package catalog and sources](docs/PACKAGE-CATALOG.md) · [UI design (SVG)](docs/design/README.md)
 
-## What's new
+## What's new in 2.2.0
 
-- **Remote layout redesigned:** the D-pad sits on top, then one row of equal keys (**Type · YouTube · Hotstar · Play/Pause · Menu**), then the seek and volume lines, then **Home · Back · Settings · Mute · Off** directly under them. Everything fits on one phone screen without scrolling, with tighter spacing.
-- **One-tap YouTube and Hotstar:** quick-launch keys open whichever YouTube or Hotstar package the TV has installed, or say that it is not installed.
+- **Remote layout redesigned:** the D-pad sits on top, then one row of equal keys (**Type · YouTube · Hotstar · Play/Pause · Menu**), then the seek and volume lines, then **Home · Back · Settings · Mute · Off** directly under them. Tall phones get a larger D-pad and the keys sit just above the tab bar. Short screens scroll while keeping a D-pad of at least 220dp.
+- **One-tap YouTube and Hotstar:** quick-launch keys open the first matching YouTube or Hotstar package in the supported package list, or say that it is not installed.
 - **Vol − and Vol + keys removed:** the volume line sets TV volume directly. Mute stays.
 - **Branch release workflow:** a separate workflow builds a release APK from the development branch, signed with repository secrets when they are set.
 - **Vector UI designs:** every phone screen, sheet and Glowlauncher TV state as editable SVG in [docs/design](docs/design/README.md).
 
 ## UI previews
 
-The new Remote is shown as its design mockup (dark and light); emulator screenshots of it will replace these after the next screenshot run. The other images are screenshots from **Konnect TV Plus 2.1.0 on Android 9 and Android 16**, using sample TV, playback and package data. Tap an image to open it at full size.
+The Remote images are real **Konnect TV Plus 2.2.0** emulator captures, including the floating tab bar: a tall screen and a 360 × 640dp viewport scrolled to its bottom keys. Other captures remain from **2.1.0 on Android 9 and Android 16**. All use sample TV, playback and package data. Tap an image to open it at full size.
 
 <table>
   <tr>
-    <th>Remote (dark)</th>
-    <th>Remote (light)</th>
+    <th>Remote · tall screen</th>
+    <th>Remote · small screen, scrolled</th>
   </tr>
   <tr>
-    <td align="center"><a href="docs/design/phone/06-remote.svg"><img src="docs/design/phone/06-remote.svg" width="260" alt="Remote design: D-pad, a row of Type, YouTube, Hotstar, Play/Pause and Menu keys, the media card with seek and volume lines, then Home, Back, Settings, Mute and Off keys above the tab bar"></a></td>
-    <td align="center"><a href="docs/design/phone/07-remote-light.svg"><img src="docs/design/phone/07-remote-light.svg" width="260" alt="The same Remote layout in the light theme"></a></td>
+    <td align="center"><a href=".github/assets/plus/remote-sliders.png"><img src=".github/assets/plus/remote-sliders.png" width="260" alt="Remote screenshot: D-pad, a row of Type, YouTube, Hotstar, Play/Pause and Menu keys, the media card with seek and volume lines, then Home, Back, Settings, Mute and Off keys above the tab bar"></a></td>
+    <td align="center"><a href=".github/assets/plus/remote-buttons.png"><img src=".github/assets/plus/remote-buttons.png" width="260" alt="Actual Remote on a small 360 by 640dp viewport, scrolled to the media lines and bottom keys above the tab bar"></a></td>
   </tr>
   <tr>
-    <td>All keys share one size and fit on one screen. Tap or drag a line to request the selected volume or playback position; unsupported controls show a reason.</td>
-    <td>The sun/moon button in the header switches themes.</td>
+    <td>All keys share one size; the D-pad grows to fill available space. Tap or drag a line to request the selected volume or playback position; unsupported controls show a reason.</td>
+    <td>Small screens scroll while keeping the D-pad at least 220dp. Navigation-bar insets keep bottom keys clear of the tabs.</td>
   </tr>
   <tr>
     <th>Saved TVs, names and tags</th>
