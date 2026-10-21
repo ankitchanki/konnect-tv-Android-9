@@ -73,6 +73,7 @@ private const val LAUNCHER_PKG = "io.konnecttv.glowlauncher"
 private const val OLD_LAUNCHER_PKG = "com.ansub.tvhome"
 /** Where our APK sits on the TV while it draws icons; deleted right after. */
 private const val ICON_HELPER = "/data/local/tmp/konnecttv-icons.jar"
+private const val MEDIA_HELPER = "/data/local/tmp/konnecttv-plus-media.jar"
 private const val LAUNCHER_ACTIVITY = "$LAUNCHER_PKG/.HomeActivity"
 
 /** Glowlauncher's accessibility service that answers Home on TVs that keep their own home (Google TV). */
@@ -154,6 +155,10 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
             memory.value = null
             tweaks.value = null
             identity.value = null
+            remoteMedia.value = null
+            remoteMediaError.value = null
+            homeChoices.value = null
+            wallpaperDraft.value = null
             _conn.value = Conn.On(savedTv)
             refreshAll()
         }.onFailure { e ->
@@ -235,6 +240,8 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
         operationLock.withLock {
             withContext(Dispatchers.IO) { lock.withLock { adb?.runCatching { close() }; adb = null } }
             wallpaperDraft.value = null
+            remoteMedia.value = null
+            remoteMediaError.value = null
             identity.value = null
             DiagnosticLog.record("INFO", "Connection", "Disconnected from TV")
             _conn.value = Conn.Off
@@ -371,7 +378,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private fun label(pkg: String) = labelFile(pkg).takeIf { it.length() > 0 }?.readText() ?: debloat.label(pkg)
 
     /** Just our code, compressed: ~1 MB to send instead of the whole 7.6 MB APK with native libraries. */
-    private fun helperJar(): File {
+    @Synchronized private fun helperJar(): File {
         val ctx = getApplication<Application>()
         val apk = File(ctx.applicationInfo.sourceDir)
         val jar = File(ctx.cacheDir, "icon-helper-${apk.lastModified()}.jar")
@@ -386,7 +393,7 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }
-            tmp.renameTo(jar)
+            check(tmp.renameTo(jar)) { "Could not prepare the TV helper." }
         }
         return jar
     }
@@ -451,6 +458,59 @@ class TvViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun restoreSetting(a: Adb, namespace: String, key: String, fallback: String) {
         val change = history.value.firstOrNull { it.kind == "setting" && it.target == "$namespace:$key" }
         if (change != null) undoOne(a, change) else a.checked("settings put $namespace $key $fallback")
+    }
+
+    // ---------- remote media controls ----------
+
+    val remoteMedia = MutableStateFlow<RemoteMedia?>(null)
+    val remoteMediaError = MutableStateFlow<String?>(null)
+    private var mediaHelperConnection: Adb? = null
+
+    private fun mediaCommand(a: Adb, args: String = "status"): RemoteMedia {
+        if (mediaHelperConnection !== a) {
+            a.checked("rm -f $MEDIA_HELPER")
+            a.push(helperJar(), MEDIA_HELPER)
+            a.checked("chmod 444 $MEDIA_HELPER")
+            mediaHelperConnection = a
+        }
+        val raw = a.checked("CLASSPATH=$MEDIA_HELPER app_process /system/bin io.konnecttv.plus.adb.MediaBridge $args", seconds = 15)
+        return parseRemoteMedia(raw, android.os.SystemClock.elapsedRealtime()).also { value ->
+            if (value.warnings != remoteMedia.value?.warnings) value.warnings.forEach { DiagnosticLog.record("WARN", "Remote media", it) }
+        }
+    }
+
+    /** Only the visible Remote screen polls. Skip a poll while another TV operation owns the connection. */
+    fun refreshRemoteMedia() = viewModelScope.launch {
+        val a = adb ?: return@launch
+        val id = tv?.id ?: return@launch
+        if (!operationLock.tryLock()) return@launch
+        try {
+            if (a !== adb || tv?.id != id) return@launch
+            val value = withContext(Dispatchers.IO) { mediaCommand(a) }
+            if (a === adb && tv?.id == id) { remoteMedia.value = value; remoteMediaError.value = null }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            mediaHelperConnection = null
+            val text = e.message ?: "TV media controls unavailable."
+            if (remoteMediaError.value != text) DiagnosticLog.record("WARN", "Remote media", "Media refresh failed", e)
+            remoteMedia.value = null
+            remoteMediaError.value = text
+            if (!a.isConnected) _conn.value = Conn.Off
+        } finally { operationLock.unlock() }
+    }
+
+    fun setTvVolume(index: Int) = work("Set TV media volume") { a ->
+        val volume = remoteMedia.value?.volume ?: error("Refresh the TV volume first.")
+        check(volume.supported) { volume.hint }
+        remoteMedia.value = mediaCommand(a, "volume ${index.coerceIn(volume.min, volume.max)}")
+        remoteMediaError.value = null
+    }
+
+    fun seekTvPlayback(key: String, position: Long) = work("Seek TV playback") { a ->
+        val playback = remoteMedia.value?.playback ?: error("Refresh playback first.")
+        check(playback.seekSupported && key == playback.key && key.matches(Regex("[a-f0-9]{24}"))) { "Playback changed or seeking is unavailable. Refresh and try again." }
+        remoteMedia.value = mediaCommand(a, "seek $key ${position.coerceIn(0, playback.durationMs)}")
+        remoteMediaError.value = null
     }
 
     // ---------- remote ----------

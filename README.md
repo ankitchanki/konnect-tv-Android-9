@@ -98,13 +98,29 @@ Comparison with the upstream source this fork started from (`9d46e4c`):
 
 ## Features
 
-- **Remote:** D-pad, OK, back, home, volume, mute, power and playback; type on the TV using the phone keyboard.
+- **Remote:** D-pad, OK, back, home, volume, mute, power and playback; type on the TV using the phone keyboard. Slim tap/drag **volume and video-position sliders** read the TV’s media state and send an absolute volume or seek request when released.
 - **Apps:** Actual inventory including disabled apps, icons, state and reason. Open apps, install a phone-selected APK, manage reviewed optional apps or your own apps. Critical and unreviewed system apps are protected from destructive actions.
 - **Detox:** Automatically identifies manufacturer/model and matches the packages actually present. New vendor rules start unchecked. Read each reason before disabling; use **Already off** to enable an app disabled before Plus was installed.
 - **Boost:** RAM/storage information, animation controls, screensaver, sleep timer and background-app cleanup. Glowlauncher keeps the stock launcher installed and enabled; Home selection depends on TV permissions and firmware.
 - **Saved TVs:** One-tap reconnect; edit names, tags and addresses. **Use last IP · TV name** fills the manual connection form with the latest saved TV.
 - **Diagnostics:** Connection attempts, discovery errors, command exit codes, installation responses, wallpaper operations and phone crashes. Logs stay on the phone until you export/share.
 - **Light/dark appearance:** Android 9-compatible UI with blur on newer phones.
+
+### Tap-to-set volume and video position
+
+On **Remote**, the media card shows the active video's or song's title, elapsed/total time and a volume percentage. Tap anywhere on a line or drag its thumb, then release to send the chosen value. Volume uses the TV's actual media-stream range; the time line uses the player's reported duration. Other remote buttons stay available.
+
+The phone reads the TV through a small helper run as the already-authorized ADB shell. It installs no background TV service. State refreshes about every three seconds while Remote is visible and the app is in the foreground; elapsed time advances between refreshes. A seek checks that the active media identity still matches the preview, preventing an old drag from seeking a different video after playback changes.
+
+**Compatibility:** A TV or HDMI/receiver setup with fixed media volume cannot offer absolute volume adjustment. Playback seeking requires an active Android media session, a known duration and the player's seek action. Live streams and apps that omit those details show a disabled line and a reason. Manufacturer restrictions can block media access; the remaining D-pad/key controls still work. A player may ignore a seek request or report its new position with a delay. The sliders reflect subsequent TV state rather than claiming universal player support.
+
+### Bug fixes and remaining limits
+
+- **Interrupted transfers:** Wallpaper and helper uploads now have a 180-second stream deadline, verify the number of bytes sent, and require the TV's completion marker and successful exit status. Failed or incomplete uploads are reported in diagnostics.
+- **Offline discovery:** Lost Wi-Fi services are removed from the live list. Pairing and connection ports are tracked separately; losing one clears only that port. Late resolution callbacks cannot recreate a service that was already lost, or replace a newer address. Saved TVs remain saved for later reconnecting.
+- **Switching TVs:** Playback, wallpaper drafts and home-app choices are reset for the newly connected TV.
+- **Media support:** Sliders depend on TV permissions and the active app's media session. Fixed HDMI volume, live/unknown-length content and players without seek support remain limited as described above.
+- **Device coverage:** Automated checks use Android 9 and Android 16 emulators. Physical TV testing, including TCL firmware variants, is still needed; the catalog is not certification for every model.
 
 ### Wallpapers from your phone
 
@@ -122,7 +138,7 @@ Open **Settings / logs** on the connection screen, or **Settings** after connect
 - **Collect TV diagnostics** adds the connected TV's identity, package states, memory/storage and recent package-manager/crash logcat entries. The TV firmware controls what ADB can read; this is not an unlimited system log capture.
 - **Export logs** saves a text report to your chosen location; **Share logs** opens the Android share sheet. Include the report, phone/TV model, action taken and expected result in a bug report.
 - Pause/resume recording, turn detailed ADB responses off, or clear local logs. Logs survive restarts, rotate around 1 MB and show the newest 400 events in the viewer. Very long command responses are truncated.
-- Pairing codes, typed remote text, private keys, icon/image bytes are omitted; recognized addresses/identifiers are redacted before storage. TV snapshots can contain installed app names and third-party error text, so review an export before sharing. No report is uploaded automatically.
+- Pairing codes, typed remote text, private keys, icon/image bytes and media-helper metadata are omitted; recognized addresses/identifiers are redacted before storage. TV snapshots can contain installed app names and third-party error text, so review an export before sharing. No report is uploaded automatically.
 
 ### Package safety and recovery
 
@@ -148,7 +164,7 @@ On an emulator or dedicated test device (wallpaper tests temporarily replace the
 ./gradlew :glowlauncher:installRelease :app:connectedDebugAndroidTest
 ```
 
-CI runs API 28 and API 36 tests. Coverage includes crop geometry, saved-TV migration within the same package, name/tag persistence, connection validation, shell-result errors, redaction, package classification, startup logs, recovery controls and real shell wallpaper upload/commit/restart/clear/checksum/access checks. It does not establish physical TV compatibility.
+CI runs API 28 and API 36 tests. Coverage includes crop geometry, saved-TV migration within the same package, name/tag persistence, connection validation, shell-result errors, transfer deadlines, discovery service lifetimes, media position math, slider interaction, actual shell media-session seeking/volume, redaction, package classification, startup logs, recovery controls and real shell wallpaper upload/commit/restart/clear/checksum/access checks. It does not establish physical TV compatibility.
 
 For an optimized production build, provide your own persistent signing key using an uncommitted root `keystore.properties`, then run `./gradlew :app:assembleRelease`:
 

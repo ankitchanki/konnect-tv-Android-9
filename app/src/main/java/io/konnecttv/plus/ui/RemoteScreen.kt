@@ -20,6 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,10 +45,20 @@ import io.konnecttv.plus.adb.Key
 import io.konnecttv.plus.data.SavedTv
 
 @Composable
-fun RemoteScreen(vm: TvViewModel, tv: SavedTv) {
+fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
     var typing by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var editTv by remember { mutableStateOf(false) }
+    val media by vm.remoteMedia.collectAsStateWithLifecycle()
+    val mediaError by vm.remoteMediaError.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(tv.id, lifecycle, active) {
+        if (!active) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (isActive) { vm.refreshRemoteMedia().join(); delay(if (vm.remoteMediaError.value == null) 3_000 else 15_000) }
+        }
+    }
     // Every key already ticks the haptics through the shared press indication.
     fun press(code: Int) = vm.key(code)
 
@@ -51,6 +68,7 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
+            RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() })
             Spacer(Modifier.height(8.dp))
             DPad(::press)
             Spacer(Modifier.height(8.dp))

@@ -21,8 +21,6 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Date
 import java.util.concurrent.TimeUnit
 import java.util.UUID
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * One ADB connection to one TV. The RSA key is made once and kept in app storage, so the TV's
@@ -64,19 +62,19 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
     /** Runs a shell command and returns its output, stdout and stderr merged. */
     fun sh(command: String): String = shellResult(command).output
 
-    fun checked(command: String): String {
-        val result = shellResult(command)
+    fun checked(command: String, seconds: Long = 90): String {
+        val result = shellResult(command, seconds)
         check(result.exitCode == 0) { "TV command failed (exit ${result.exitCode}): ${result.output}" }
         return result.output
     }
 
-    private fun shellResult(command: String): ShellResult {
+    private fun shellResult(command: String, seconds: Long = 90): ShellResult {
         val marker = "__PLUS_${UUID.randomUUID().toString().replace("-", "")}__"
         val started = android.os.SystemClock.elapsedRealtime()
         val label = LogSanitizer.command(command)
         if (DiagnosticLog.verbose.value) DiagnosticLog.record("DEBUG", "ADB", "RUN $label")
         try {
-            val result = timedStream("shell:$command; __plus_rc=\$?; echo; echo $marker:\$__plus_rc; echo ${marker}_DONE", 90) {
+            val result = timedStream("shell:$command; __plus_rc=\$?; echo; echo $marker:\$__plus_rc; echo ${marker}_DONE", seconds) {
                 parseShellResult(it.readUntil { raw -> "${marker}_DONE" in raw }, marker)
             }
             if (result.exitCode != 0 || DiagnosticLog.verbose.value) DiagnosticLog.record(
@@ -91,14 +89,7 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
     }
 
     private fun <T> timedStream(service: String, seconds: Long, action: (AdbStream) -> T): T = openStream(service).use { stream ->
-        val expired = AtomicBoolean(false)
-        val timer = commandTimer.schedule({ expired.set(true); runCatching { stream.close() } }, seconds, TimeUnit.SECONDS)
-        try {
-            action(stream).also { if (expired.get()) throw java.io.IOException("TV command timed out after $seconds seconds.") }
-        } catch (e: Exception) {
-            if (expired.get()) throw java.io.IOException("TV command timed out after $seconds seconds.", e)
-            throw e
-        } finally { timer.cancel(false) }
+        withStreamDeadline(TimeUnit.SECONDS.toMillis(seconds), { stream.close() }) { action(stream) }
     }
 
     private var keyShell: AdbStream? = null
@@ -143,24 +134,26 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
         }
     }
 
-    /** Copies a file onto the TV. `exec:` is a raw pipe, so the bytes arrive untouched. */
-    fun push(file: File, remote: String) {
-        if (DiagnosticLog.verbose.value) DiagnosticLog.record("DEBUG", "Transfer", "Sending ${file.length()} bytes to $remote")
-        openStream("exec:head -c ${file.length()} > '${remote.replace("'", "'\\''")}'; echo $END").use { stream ->
-            stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
-            stream.readUntil { END in it }
-        }
-    }
+    /** Bounded, checked raw uploads: an interrupted stream must never look like success. */
+    fun push(file: File, remote: String) = upload(file, "head -c ${file.length()} > '${remote.replace("'", "'\\''")}'", "Helper file")
 
-    /** `content write` hands the bytes to the launcher's shell-only inbox, including on Android 9. */
-    fun pushWallpaper(file: File) {
-        DiagnosticLog.record("INFO", "Wallpaper", "Sending optimized wallpaper (${file.length()} bytes; image content omitted)")
-        openStream("exec:head -c ${file.length()} | content write --uri content://io.konnecttv.glowlauncher.wallpaper/wallpaper; echo RESULT:\$?; echo $END").use { stream ->
-            stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }; out.flush() }
-            // head closes the pipe at the exact file size, so content write gets EOF without closing ADB.
-            val result = stream.readUntil { END in it }
-            check("RESULT:0" in result) { "The TV could not receive the wallpaper." }
-        }
+    fun pushWallpaper(file: File) = upload(file,
+        "head -c ${file.length()} | content write --uri content://io.konnecttv.glowlauncher.wallpaper/wallpaper", "Wallpaper")
+
+    private fun upload(file: File, command: String, label: String) {
+        check(file.length() > 0) { "The file to send is empty." }
+        val marker = "__UPLOAD_${UUID.randomUUID().toString().replace("-", "")}__"
+        DiagnosticLog.record("INFO", "Transfer", "$label upload started (${file.length()} bytes; payload omitted)")
+        try {
+            val response = timedStream("exec:$command; __plus_rc=\$?; echo; echo $marker:\$__plus_rc; echo ${marker}_DONE", 180) { stream ->
+                val sent = runCatching { stream.openOutputStream().let { out -> file.inputStream().use { it.copyTo(out) }.also { out.flush() } } }
+                val result = parseShellResult(stream.readUntil { "${marker}_DONE" in it }, marker)
+                check(sent.getOrDefault(-1L) == file.length()) { "$label transfer was incomplete. TV response: ${result.output}" }
+                result
+            }
+            check(response.exitCode == 0) { "$label upload failed (exit ${response.exitCode}): ${response.output}" }
+            DiagnosticLog.record("INFO", "Transfer", "$label upload completed (${file.length()} bytes)")
+        } catch (e: Exception) { DiagnosticLog.record("ERROR", "Transfer", "$label upload failed", e); throw e }
     }
 
     override fun close() {
@@ -170,8 +163,6 @@ class Adb(context: Context) : AbsAdbConnectionManager() {
     }
 }
 
-private const val END = "__KONNECTTV_END__"
-private val commandTimer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "Plus-ADB-watchdog").apply { isDaemon = true } }
 
 /**
  * Reads until [done] says the output is complete. libadb's reader can block forever when the

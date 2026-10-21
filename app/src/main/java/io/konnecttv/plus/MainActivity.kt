@@ -106,7 +106,7 @@ private fun Root(vm: TvViewModel) {
             else when (val c = conn) {
                 is Conn.On -> HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
                     when (Tab.entries[page]) {
-                        Tab.Remote -> RemoteScreen(vm, c.tv)
+                        Tab.Remote -> RemoteScreen(vm, c.tv, active = pager.currentPage == page)
                         Tab.Apps -> AppsScreen(vm)
                         Tab.Detox -> DetoxScreen(vm)
                         Tab.Boost -> BoostScreen(vm, c.tv)
