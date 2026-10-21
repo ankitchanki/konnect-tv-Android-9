@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.*
@@ -28,6 +31,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.konnecttv.plus.data.SavedTv
+import io.konnecttv.plus.ui.Tab
 import io.konnecttv.plus.ui.C
 import io.konnecttv.plus.ui.RemoteMediaControls
 import io.konnecttv.plus.ui.RemoteScreen
@@ -89,22 +93,52 @@ class RemoteMediaTest {
         compose.runOnIdle { assertEquals(1, enabled) }
     }
 
-    @Test fun currentRemoteScreenshotsIncludeTheNewSlidersAndOriginalButtons() {
+    @Test fun tallRemoteFillsTheSpaceAboveTheTabBar() {
+        showRemote(small = false)
+        compose.onNodeWithTag("remote-dpad").assertHeightIsAtLeast(220.dp)
+        compose.onNodeWithText("YouTube").assertIsDisplayed()
+        compose.onNodeWithText("Hotstar").assertIsDisplayed()
+        compose.onNodeWithText("Off").assertIsDisplayed()
+        assertBottomKeysNearTabs()
+        screenshot("remote-sliders.png")
+    }
+
+    @Test fun smallRemoteKeepsMinimumDpadAndScrollsToBottomKeys() {
+        showRemote(small = true)
+        compose.onNodeWithTag("remote-dpad").assertHeightIsAtLeast(220.dp)
+        val scroll = compose.onNodeWithTag("remote-scroll").fetchSemanticsNode()
+            .config[androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange]
+        assertTrue("360x640 Remote must scroll", scroll.maxValue() > 0f)
+        compose.onNodeWithText("Off").performScrollTo().assertIsDisplayed()
+        // Scroll to the actual content end, including clearance for the floating tab bar.
+        compose.onNodeWithTag("remote-scroll").performTouchInput { swipeUp() }
+        compose.onNodeWithText("Off").assertIsDisplayed()
+        assertBottomKeysNearTabs()
+        screenshot("remote-buttons.png")
+    }
+
+    private fun showRemote(small: Boolean) {
         val vm = ViewModelProvider(compose.activity)[TvViewModel::class.java]
         compose.runOnIdle {
             vm.remoteMedia.value = sample()
             compose.activity.setContent {
-                Box(Modifier.fillMaxSize().background(C.Bg).safeDrawingPadding()) {
-                    RemoteScreen(vm,SavedTv("remote-preview","Living room TV","192.168.1.24",5555))
+                val size = if (small) Modifier.requiredSize(360.dp,640.dp) else Modifier.fillMaxSize()
+                Box(size.background(C.Bg)) {
+                    Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                        RemoteScreen(vm,SavedTv("remote-preview","Living room TV","192.168.1.24",5555), active = false)
+                    }
+                    TabBar(Tab.Remote, Modifier.align(Alignment.BottomCenter)) {}
                 }
             }
         }
-        compose.onNodeWithContentDescription("TV volume").assertIsDisplayed()
-        screenshot("remote-sliders.png")
-        compose.onNodeWithText("YouTube").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Hotstar").assertIsDisplayed()
-        compose.onNodeWithText("Off").performScrollTo().assertIsDisplayed()
-        screenshot("remote-buttons.png")
+        compose.waitForIdle()
+    }
+
+    private fun assertBottomKeysNearTabs() {
+        val keys = compose.onNodeWithTag("remote-bottom-keys").getUnclippedBoundsInRoot()
+        val tabs = compose.onNodeWithTag("tab-bar").getUnclippedBoundsInRoot()
+        val gap = tabs.top - keys.bottom
+        assertTrue("Keys must sit above tabs without an empty band: $gap", gap >= 0.dp && gap <= 36.dp)
     }
 
     @Test fun shellMediaBridgeReadsAndSeeksAnActualMediaSession() {

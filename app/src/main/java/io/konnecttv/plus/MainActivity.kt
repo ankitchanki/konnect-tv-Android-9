@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -136,13 +137,14 @@ private fun Root(vm: TvViewModel) {
 }
 
 @Composable
-private fun TabBar(current: Tab, modifier: Modifier, onPick: (Tab) -> Unit) {
+internal fun TabBar(current: Tab, modifier: Modifier, onPick: (Tab) -> Unit) {
     Row(
         modifier
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
             .height(64.dp)
+            .testTag("tab-bar")
             .glass(RoundedCornerShape(32.dp)),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,

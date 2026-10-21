@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.text.font.FontWeight
@@ -77,7 +78,7 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
         // The D-pad grows into whatever height the keys leave, so the remote reaches the tab bar with no empty band.
         FillScreenColumn(
             screen = maxHeight, grow = 1, gap = 10.dp,
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().testTag("remote-scroll").verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         ) {
             TvHeader(tv, onSwitch = vm::disconnect, onTheme = vm::toggleLight) { menu = true }
             DPad(::press)
@@ -92,7 +93,7 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
             // The keys used most while watching sit right under the seek and volume lines, with almost no gap.
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 RemoteMediaControls(media, mediaError, busy, vm::setTvVolume, vm::seekTvPlayback, { vm.refreshRemoteMedia() }, { vm.enableMediaControls() })
-                KeyRow {
+                KeyRow(Modifier.testTag("remote-bottom-keys")) {
                     RemoteKey("Home", Modifier.weight(1f), { Glyph(Glyphs.Home) }) { press(Key.HOME) }
                     RemoteKey("Back", Modifier.weight(1f), { Glyph(Glyphs.Back) }) { press(Key.BACK) }
                     RemoteKey("Settings", Modifier.weight(1f), { Glyph(Glyphs.Settings) }) { press(Key.SETTINGS) }
@@ -178,7 +179,7 @@ private fun DPad(press: (Int) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val side = minOf(maxWidth, maxHeight)
         val scale = side / 264.dp
-        Box(Modifier.size(side).clip(CircleShape).background(C.Card).border(1.dp, C.Border, CircleShape)) {
+        Box(Modifier.size(side).testTag("remote-dpad").clip(CircleShape).background(C.Card).border(1.dp, C.Border, CircleShape)) {
             val zone = Modifier.size(side / 3).clip(CircleShape)
             Arrow(180f, scale, zone.align(Alignment.TopCenter)) { press(Key.UP) }
             Arrow(0f, scale, zone.align(Alignment.BottomCenter)) { press(Key.DOWN) }
@@ -198,8 +199,8 @@ private fun Arrow(rotation: Float, scale: Float, modifier: Modifier, onClick: ()
     Box(modifier.clickable(onClick = onClick), contentAlignment = Alignment.Center) { Glyph(Glyphs.Chevron, C.Muted, 30.dp * scale, Modifier.rotate(rotation)) }
 
 @Composable
-private fun KeyRow(content: @Composable RowScope.() -> Unit) =
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), content = content)
+private fun KeyRow(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) =
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), content = content)
 
 @Composable
 private fun RemoteKey(label: String, modifier: Modifier, icon: @Composable () -> Unit, onClick: () -> Unit) {
