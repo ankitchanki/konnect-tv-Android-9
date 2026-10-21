@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -eu
 
+# Nexus 6 defaults to ~731dp tall at 560dpi, which is a scrolling Remote viewport.
+# Use 480dpi (~853dp tall) for the tall fixture; the second fixture constrains itself to 360x640dp.
+adb shell wm density 480
+mkdir -p ui-previews
+adb shell wm size > ui-previews/display-metrics.txt
+adb shell wm density >> ui-previews/display-metrics.txt
+
 test_status=0
 ./gradlew :glowlauncher:installRelease :app:connectedDebugAndroidTest || test_status=$?
 
