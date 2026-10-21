@@ -351,7 +351,7 @@ def tv_header(c, name="Living room TV"):
 
 
 def media_card(c, y, error=False, seeking=False):
-    h = 140 if not error else 222
+    h = 140 if not error else 210
     card(c, 16, y, W - 32, h)
     x, w = 30, W - 60
     body(c, x, y + 26, "Media controls unavailable" if error else "Stranger Things · S4 E1 — Netflix")
@@ -365,8 +365,8 @@ def media_card(c, y, error=False, seeking=False):
     mline(c, x, y + 112, w, 0 if error else .42, not error)
     if error:
         small(c, x, y + 146, "Waiting for TV volume…")
-        para(c, x, y + 166, "The TV couldn't provide media controls. Other remote buttons remain available.", w)
-        primary(c, x, y + 172, w, "Retry media controls", h=40)
+        small(c, x, y + 164, "Other remote buttons still work. See Diagnostic logs.")
+        primary(c, x, y + 176, w, "Retry media controls", h=34)
     return h
 
 
@@ -387,32 +387,33 @@ def remote(c, error=False):
     c.circle(cx, cy, 50, C["Raised"], C["RaisedBorder"])
     c.text(cx, cy + 6, "OK", 17, C["Accent"], 600, "middle")
     y = cy + 132 + 14
-    # Vol −/+ keys are gone: the volume line in the media card below does that job.
-    rows = [[("Back", "back", 1), ("Home", "home", 1), ("Type", "kbd", 1)],
-            [("Mute", "mute", 1), ("YouTube", "yt", 1), ("Hotstar", "hotstar", 1), ("Power", "power", 1)],
-            [("Play / Pause", "playpause", 2), ("Menu", "menu", 1), ("Settings", "gear", 1)]]
-    for row in rows:
-        total = sum(r[2] for r in row)
-        x = 16
-        avail = W - 32 - 10 * (len(row) - 1)
-        for label, ic, wt in row:
-            kw = avail * wt / total
-            c.rect(x, y, kw, 66, 18, C["Card"], C["Border"])
-            if ic == "power":
-                power(c, x + kw / 2, y + 26, C["Danger"])
-            elif ic == "yt":
-                c.rect(x + kw / 2 - 14, y + 16, 28, 20, 6, "#FF0000")
-                c.path(f"M{x + kw / 2 - 4:g} {y + 21:g} L{x + kw / 2 + 6:g} {y + 26:g} L{x + kw / 2 - 4:g} {y + 31:g}Z", "#FFFFFF")
-            elif ic == "hotstar":
-                c.rect(x + kw / 2 - 13, y + 13, 26, 26, 7, "#0F1E5C")
-                icon(c, "sparkle", x + kw / 2 - 8, y + 18, 16, "#FFFFFF", fill=True)
-            else:
-                icon(c, ic, x + kw / 2 - 11, y + 15, 22, C["Text"], 1.7)
-            c.text(x + kw / 2, y + 54, label, 11, C["Muted"], 400, "middle")
-            x += kw + 10
-        y += 76
-    media_card(c, y - 2, error)
+    # Vol −/+ keys are gone: the volume line in the media card does that job.
+    # Everyday keys sit in one row of equal keys under the media card.
+    key_row(c, y, [("Type", "kbd"), ("YouTube", "yt"), ("Hotstar", "hotstar"), ("Play/Pause", "playpause"), ("Menu", "menu")])
+    y += 76
+    y += media_card(c, y, error) + 10
+    key_row(c, y, [("Home", "home"), ("Back", "back"), ("Settings", "gear"), ("Mute", "mute"), ("Off", "power")])
     tab_bar(c, "Remote")
+
+
+def key_row(c, y, keys):
+    """Equal-width remote keys across the screen."""
+    kw = (W - 32 - 10 * (len(keys) - 1)) / len(keys)
+    x = 16
+    for label, ic in keys:
+        c.rect(x, y, kw, 66, 18, C["Card"], C["Border"])
+        if ic == "power":
+            power(c, x + kw / 2, y + 26, C["Danger"])
+        elif ic == "yt":
+            c.rect(x + kw / 2 - 14, y + 16, 28, 20, 6, "#FF0000")
+            c.path(f"M{x + kw / 2 - 4:g} {y + 21:g} L{x + kw / 2 + 6:g} {y + 26:g} L{x + kw / 2 - 4:g} {y + 31:g}Z", "#FFFFFF")
+        elif ic == "hotstar":
+            c.rect(x + kw / 2 - 13, y + 13, 26, 26, 7, "#0F1E5C")
+            icon(c, "sparkle", x + kw / 2 - 8, y + 18, 16, "#FFFFFF", fill=True)
+        else:
+            icon(c, ic, x + kw / 2 - 11, y + 15, 22, C["Text"], 1.7)
+        c.text(x + kw / 2, y + 54, label, 11, C["Muted"], 400, "middle")
+        x += kw + 10
 
 
 def power(c, cx, cy, col, s=20):
