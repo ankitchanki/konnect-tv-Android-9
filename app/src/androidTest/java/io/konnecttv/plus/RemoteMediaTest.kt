@@ -13,6 +13,8 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -49,7 +51,7 @@ class RemoteMediaTest {
         val state = sample()
         compose.activity.runOnUiThread {
             compose.activity.setContent {
-                Column(Modifier.fillMaxSize().background(C.Bg).padding(16.dp)) {
+                Column(Modifier.fillMaxSize().background(C.Bg).safeDrawingPadding().padding(16.dp)) {
                     RemoteMediaControls(state,null,false,{volume=it},{key,position-> assertEquals(state.playback.key,key);seek=position},{})
                 }
             }
@@ -75,7 +77,7 @@ class RemoteMediaTest {
         var enabled = 0
         compose.activity.runOnUiThread {
             compose.activity.setContent {
-                Column(Modifier.fillMaxSize().background(C.Bg).padding(16.dp)) {
+                Column(Modifier.fillMaxSize().background(C.Bg).safeDrawingPadding().padding(16.dp)) {
                     RemoteMediaControls(RemoteMedia(needsAccess = true),null,false,{}, {_,_->}, {}, {enabled++})
                 }
             }
@@ -91,7 +93,11 @@ class RemoteMediaTest {
         val vm = ViewModelProvider(compose.activity)[TvViewModel::class.java]
         compose.runOnIdle {
             vm.remoteMedia.value = sample()
-            compose.activity.setContent { RemoteScreen(vm,SavedTv("remote-preview","Living room TV","192.168.1.24",5555)) }
+            compose.activity.setContent {
+                Box(Modifier.fillMaxSize().background(C.Bg).safeDrawingPadding()) {
+                    RemoteScreen(vm,SavedTv("remote-preview","Living room TV","192.168.1.24",5555))
+                }
+            }
         }
         compose.onNodeWithContentDescription("TV volume").assertIsDisplayed()
         screenshot("remote-sliders.png")
