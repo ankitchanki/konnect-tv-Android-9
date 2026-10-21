@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,7 +52,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.konnecttv.plus.QuickApp
-import io.konnecttv.plus.TabBarClearance
 import io.konnecttv.plus.TvViewModel
 import io.konnecttv.plus.adb.Key
 import io.konnecttv.plus.data.SavedTv
@@ -101,7 +101,8 @@ fun RemoteScreen(vm: TvViewModel, tv: SavedTv, active: Boolean = true) {
                     RemoteKey("Off", Modifier.weight(1f), { PowerIcon(C.Danger, Modifier.size(20.dp)) }) { press(Key.POWER) }
                 }
             }
-            Spacer(Modifier.height(TabBarClearance))
+            // Match the floating tabs plus the actual navigation inset (48dp on some Android 9 devices).
+            Spacer(Modifier.navigationBarsPadding().height(88.dp))
         }
         GlassSheet(typing, onDismiss = { typing = false }) {
             var text by remember { mutableStateOf("") }
